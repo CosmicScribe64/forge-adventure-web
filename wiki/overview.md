@@ -14,6 +14,8 @@ well on phones.
 
 ## Where it stands (as of 2026-09-29)
 
+- **Hosted** at <https://cosmicscribe64.github.io/shandalar/> since 2026-10-01, rebuilt from
+  source for each release ([[build-pipeline]]).
 - **Playable end to end.** It goes from the tutorial through world generation and the overworld,
   then a town and shop purchase, then a duel won with rewards. Saves persist across reloads in
   IndexedDB. All of this is driven by the [[webtest-harness]] and was also watched live in a

@@ -71,3 +71,13 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
   `scripts/measure` greps the `[ttg]` lines, which it doesn't.
 - open-issues: "Before a public release" became "Before hosting a public build" (Scryfall rate,
   GitHub Pages), since those apply to a hosted site, not to the source release.
+
+## [2026-10-01] update | Hosting on GitHub Pages
+- Added `scripts/build-site` (the static site in `web/build/site`, 310 MB) and
+  `.github/workflows/pages.yml`, which builds from scratch and deploys on each published release
+  or by hand. Before pushing, the site was served from a `/shandalar/` subpath and played to the
+  tutorial cave: title at 27 s, world generated in 13.6 s, World hash `cf3e72545c906f8e`, no
+  errors.
+- `scripts/dock` hands files back to the caller on Linux (the container's root owned them, which
+  broke `build-web` on a Linux runner).
+- Pages: build-pipeline, overview, open-issues (Hosting section).

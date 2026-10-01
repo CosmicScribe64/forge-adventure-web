@@ -9,6 +9,14 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -t "$IMAGE" "$ROOT/docker"
 fi
 
+# On Linux, what the container writes under /work belongs to its root user, and host-side steps
+# that write next to it later (scripts/build-web copying index.html) fail. Give it back to the
+# caller when the command exits. Docker Desktop on macOS maps ownership itself.
+GIVE_BACK=""
+if [ "$(uname -s)" = Linux ] && [ "$(id -u)" != 0 ]; then
+  GIVE_BACK="trap 'find /work -xdev -uid 0 -exec chown -h $(id -u):$(id -g) {} + 2>/dev/null' EXIT; "
+fi
+
 exec docker run --rm ${DOCK_NAME:+--name $DOCK_NAME} \
   -v "$ROOT":/work \
   -v shandalar-m2:/root/.m2 \
@@ -16,4 +24,4 @@ exec docker run --rm ${DOCK_NAME:+--name $DOCK_NAME} \
   -w "/work/${DOCK_CWD:-}" \
   ${DOCK_PORTS:+-p $DOCK_PORTS} \
   ${DOCK_ENV:+-e $DOCK_ENV} \
-  "$IMAGE" bash -lc "$*"
+  "$IMAGE" bash -lc "$GIVE_BACK$*"

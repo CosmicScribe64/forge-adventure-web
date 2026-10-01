@@ -5,11 +5,14 @@ Gathering RPG, running in a web browser. The Java game (libGDX) is compiled to J
 [gdx-teavm](https://github.com/xpenatan/gdx-teavm) and [TeaVM](https://teavm.org) 0.15, with as
 few changes to Forge as possible.
 
+**Play it at <https://cosmicscribe64.github.io/shandalar/>** in desktop Chrome. The first visit
+downloads about 30 MB, and the game needs about 1.1 GB of memory once you're in the world.
+
 ![The Shandalar overworld, running in Chrome](docs/overworld.png)
 
 ## Status
 
-It's experimental and isn't hosted anywhere yet, so you have to build and serve it yourself.
+It's experimental. The hosted copy is rebuilt from source for each release.
 
 You can play it from start to finish in Chrome: the tutorial, world generation, the overworld,
 towns and shops, duels against Forge's AI, and saves that persist across reloads. It has been
@@ -78,6 +81,17 @@ Then open <http://localhost:8090/> in Chrome. These page parameters are useful f
 | `?seed=N` | Generates the same world every time |
 | `?test=1` | Turns on the in-game test harness (`forgeweb.test.WebTest`) |
 | `?wfc=local` | Generates the world on the page instead of in Web Workers |
+
+### Hosting
+
+`scripts/build-site` puts the built game in `web/build/site` (about 310 MB) as a static site.
+Any static host can serve it, from the root or from a subpath.
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs every step above on GitHub's
+servers and publishes the result to GitHub Pages whenever a release is published. You can also
+run it by hand from the Actions tab.
+
+Players' browsers fetch card art straight from Scryfall's API, which asks clients to stay under
+about 10 requests per second.
 
 ## Development
 

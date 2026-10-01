@@ -1,0 +1,57 @@
+# Builds the game from scratch and publishes it to GitHub Pages. Runs for each published release,
+# and on demand from the Actions tab. The build steps are the same as in README.md.
+name: Deploy to GitHub Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer run waits instead of cancelling one in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A full build takes 20-40 minutes here; most of it is TeaVM compiling Forge.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Clone Forge and apply the patch
+        run: scripts/update-forge
+
+      - name: Build Forge's jars
+        run: scripts/build-forge-libs
+
+      - name: Prepare the game data
+        run: scripts/build-webdata
+
+      - name: Compile to JavaScript
+        run: scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
+
+      - name: Assemble the site
+        run: scripts/build-site
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

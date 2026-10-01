@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Assemble the playable game as a static site in web/build/site, for any static host (the
+GitHub Pages workflow publishes it). Needs scripts/build-web and scripts/build-webdata first.
+
+The site has the same layout that scripts/serve-web serves. Every URL the page uses is relative,
+so it also works under a subpath such as https://<user>.github.io/<repo>/.
+  ./            the compiled game (web/build/dist/js/webapp)
+  forge-data/   web/webdata: manifest, card scripts and packs, all gzipped
+  forge/res/    only the game files the manifest says are fetched one by one. Files in a pack or
+                in the card zip are left out, since the game reads them from there.
+"""
+import gzip
+import os
+import shutil
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WEBAPP = os.path.join(ROOT, "web", "build", "dist", "js", "webapp")
+WEBDATA = os.path.join(ROOT, "web", "webdata")
+RES = os.path.join(ROOT, "forge", "forge-gui", "res")
+SITE = os.path.join(ROOT, "web", "build", "site")
+
+
+def main():
+    for path, step in ((os.path.join(WEBAPP, "app.js"), "scripts/build-web"),
+                       (os.path.join(WEBDATA, "manifest.txt.gz"), "scripts/build-webdata")):
+        if not os.path.exists(path):
+            sys.exit(f"{os.path.relpath(path, ROOT)} is missing; run {step} first")
+
+    shutil.rmtree(SITE, ignore_errors=True)
+    # WEB-INF is a servlet descriptor gdx-teavm writes, which a static host doesn't need.
+    # forge-data/ and forge/ are empty mount points left by scripts/serve-web's Docker mounts.
+    skip = {"WEB-INF", "forge-data", "forge"}
+    shutil.copytree(WEBAPP, SITE, ignore=lambda d, names: skip & set(names) if d == WEBAPP else ())
+    shutil.copytree(WEBDATA, os.path.join(SITE, "forge-data"))
+
+    with gzip.open(os.path.join(WEBDATA, "manifest.txt.gz"), "rt", encoding="utf-8") as f:
+        lines = [line.rstrip("\n").split("\t") for line in f if line.strip()]
+    count = 0
+    for cols in lines:
+        if len(cols) > 2:
+            continue  # served from a pack or the card zip
+        rel = cols[0][len("res/"):]
+        dst = os.path.join(SITE, "forge", "res", rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(os.path.join(RES, rel), dst)
+        count += 1
+
+    size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(SITE) for f in fs)
+    print(f"web/build/site: {count} game files from res/, {size // (1024 * 1024)} MB in total")
+
+
+if __name__ == "__main__":
+    main()

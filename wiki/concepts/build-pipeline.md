@@ -8,7 +8,9 @@ tags: [build, docker, teavm]
 # Build pipeline
 
 Everything builds in Docker (`docker/Dockerfile`, with JDK 17, Maven and Gradle). `scripts/dock <cmd>`
-runs a command in the container with the project at `/work`. Maven and Gradle caches live in
+runs a command in the container with the project at `/work`. On Linux the container's root owns
+what it writes there, so `dock` hands those files back to the caller when the command exits
+(2026-10-01). Without that, `build-web`'s host-side steps fail on a Linux machine or runner. Maven and Gradle caches live in
 the Docker volumes `shandalar-m2` and `shandalar-gradle`. `README.md` walks a new user through the
 steps below.
 
@@ -23,6 +25,8 @@ steps below.
 | Game | `scripts/build-web` | `web/build/dist/js/webapp`, log `web/build/teavm.log` | about 5 min; it rewrites index.html without `sed -i`, so it runs on macOS and Linux (2026-10-01) |
 | Self-test | `scripts/selftest` (`SELFTEST=true`) | `web/build/dist/selftest` | about 35 s of checks plus about 5 min to build; see [[selftest]] |
 | Serve | `scripts/serve-web` | port 8090 | also the desktop preview config `forge-web` |
+| Static site | `scripts/build-site` | `web/build/site` (310 MB) | the game, `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |
+| Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above on GitHub's runners for each published release, or by hand; see [[open-issues]] |
 
 ## TeaVM settings (environment variables read by `build.gradle.kts`)
 - `TEAVM_MEMORY_MB` (default 5120). Forge is about 400k lines, and TeaVM needs about 5 GB to analyse it.

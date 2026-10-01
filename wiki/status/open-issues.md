@@ -67,9 +67,8 @@ line across the duel background is Forge's own field separator, not a bug.
   prefetching may have fixed it. See [[startup-and-loading]].
 - [ ] Is the Phase 3 transformer that drops `synchronized` still needed? See [[plan-phases]].
 
-## Before hosting a public build
-The source repository was prepared for release on 2026-10-01. These items matter once a build
-is hosted for other people to play.
-- [ ] Follow Scryfall's guidance of about 10 requests per second. See [[scryfall]].
-- [ ] Add a GitHub Pages workflow (a release build, with app.js under 100 MB). See
-  [[build-pipeline]].
+## Hosting
+The build has been public on GitHub Pages since 2026-10-01 ([[build-pipeline]]).
+- [ ] Card art requests go from each player's browser to Scryfall, which asks for at most about
+  10 requests per second. Nothing limits the rate yet. See [[scryfall]].
+- [x] GitHub Pages workflow (`.github/workflows/pages.yml`, 2026-10-01).
