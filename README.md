@@ -5,31 +5,10 @@ Gathering RPG, running in a web browser. The Java game (libGDX) is compiled to J
 [gdx-teavm](https://github.com/xpenatan/gdx-teavm) and [TeaVM](https://teavm.org) 0.15, with as
 few changes to Forge as possible.
 
-**Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>** in desktop Chrome. The first visit
+**Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>**. The first visit
 downloads about 30 MB, and the game needs about 1.1 GB of memory once you're in the world.
 
 ![The Shandalar overworld, running in Chrome](docs/overworld.png)
-
-## Status
-
-It's experimental. The hosted copy is rebuilt from source for each release.
-
-You can play it from start to finish in Chrome: the tutorial, world generation, the overworld,
-towns and shops, duels against Forge's AI, and saves that persist across reloads. It has been
-tested in desktop Chrome and headless Chromium. Other browsers are untested.
-
-Numbers as of 2026-09-29 (conditions and history are in
-[`wiki/status/metrics.md`](wiki/status/metrics.md)):
-
-| Measure | Value |
-|---|---|
-| `app.js` size | 76 MB, 7.1 MB gzipped |
-| Page load to title screen | about 18 s |
-| World generation | 6.6 s (it was 44-70 s) |
-| Browser memory at the overworld | about 1.1 GB |
-
-The goal is for Adventure to run well on phones. [`PLAN.md`](PLAN.md) has the plan, and
-[`wiki/status/open-issues.md`](wiki/status/open-issues.md) lists the known problems.
 
 ## How it works
 
