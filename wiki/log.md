@@ -118,3 +118,9 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
 - Scryfall: Forge's own `ScryfallRateLimiter` (100 ms between `api.scryfall.com` requests, 500 ms
   for search, backoff on 429; the `cards.scryfall.io` CDN is unthrottled) runs on green threads,
   where `Thread.sleep` really waits. Not yet measured in a session: the test reached no card art.
+- Released v0.1.1 with the loader fix. On the live site, `app.js.gz` arrives as
+  `application/gzip` with no Content-Encoding, and the loader text never passed its total and
+  ended at "31 / 31 MB".
+- Added `.github/workflows/ci.yml`: on every push to main and every pull request it runs the wiki
+  lint, `update-forge`, the Forge build, `build-webdata`, `scripts/selftest` and `build-web`. Its
+  first run passed, which was also the first SelfTest run on Linux.
