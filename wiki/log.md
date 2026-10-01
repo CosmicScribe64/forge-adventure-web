@@ -102,3 +102,6 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
   max-age=600` for every file and ignores the long caching `serve.py` gives versioned URLs.
 - Published release v0.1.0 (Forge Adventure Web 0.1.0); its notes and the repository's About
   sidebar link to https://cosmicscribe64.github.io/forge-adventure-web/.
+- The release's own deploy job was first rejected: GitHub created the `github-pages` environment
+  allowing only the `main` branch, and a release runs from its tag. Added a `v*` tag rule to the
+  environment and reran the deploy, which passed.
