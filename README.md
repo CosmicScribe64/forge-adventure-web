@@ -63,7 +63,7 @@ Then open <http://localhost:8090/> in Chrome. These page parameters are useful f
 
 ### Hosting
 
-`scripts/build-site` puts the built game in `web/build/site` (about 310 MB) as a static site.
+`scripts/build-site` puts the built game in `web/build/site` (about 245 MB) as a static site.
 Any static host can serve it, from the root or from a subpath.
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs every step above on GitHub's
 servers and publishes the result to GitHub Pages whenever a release is published. You can also

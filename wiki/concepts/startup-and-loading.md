@@ -28,7 +28,11 @@ reach the menu when nothing else was loading the machine. See [[metrics]].
 4. `forgeweb.compat.LoadingScreen` hides the page's loader on the first rendered frame.
 
 ## Progress reporting (Round 10)
-- Downloads fill the bar to 40%, and Forge's own startup fills the rest.
+- Downloads fill the bar to 40%, and Forge's own startup fills the rest. The page downloads
+  `app.js.gz` and the `forge-data/*.gz` files and un-gzips them itself, so it counts wire bytes
+  against `Content-Length`. A file the server compresses on the fly (`Content-Encoding`) counts
+  only once it has arrived, because the browser hands the page decoded bytes (2026-10-01; see
+  [[bug-catalog]]).
 - In `forgeweb.compat.Progress`, CallRedirector routes `CardStorageReader.ProgressObserver` and
   `FProgressBar.setDescription` to `window.forgeProgress`.
 - Loading runs on a green thread that never waits, so nothing could repaint. Each report

@@ -4,7 +4,7 @@ GitHub Pages workflow publishes it). Needs scripts/build-web and scripts/build-w
 
 The site has the same layout that scripts/serve-web serves. Every URL the page uses is relative,
 so it also works under a subpath such as https://<user>.github.io/<repo>/.
-  ./            the compiled game (web/build/dist/js/webapp)
+  ./            the compiled game (web/build/dist/js/webapp), with app.js only as app.js.gz
   forge-data/   web/webdata: manifest, card scripts and packs, all gzipped
   forge/res/    only the game files the manifest says are fetched one by one. Files in a pack or
                 in the card zip are left out, since the game reads them from there.
@@ -22,7 +22,7 @@ SITE = os.path.join(ROOT, "web", "build", "site")
 
 
 def main():
-    for path, step in ((os.path.join(WEBAPP, "app.js"), "scripts/build-web"),
+    for path, step in ((os.path.join(WEBAPP, "app.js.gz"), "scripts/build-web"),
                        (os.path.join(WEBDATA, "manifest.txt.gz"), "scripts/build-webdata")):
         if not os.path.exists(path):
             sys.exit(f"{os.path.relpath(path, ROOT)} is missing; run {step} first")
@@ -30,7 +30,8 @@ def main():
     shutil.rmtree(SITE, ignore_errors=True)
     # WEB-INF is a servlet descriptor gdx-teavm writes, which a static host doesn't need.
     # forge-data/ and forge/ are empty mount points left by scripts/serve-web's Docker mounts.
-    skip = {"WEB-INF", "forge-data", "forge"}
+    # The page loads app.js.gz, so the uncompressed app.js isn't published.
+    skip = {"WEB-INF", "forge-data", "forge", "app.js"}
     shutil.copytree(WEBAPP, SITE, ignore=lambda d, names: skip & set(names) if d == WEBAPP else ())
     shutil.copytree(WEBDATA, os.path.join(SITE, "forge-data"))
 

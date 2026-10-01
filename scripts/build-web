@@ -21,6 +21,9 @@ if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
   # Not sed -i: its argument syntax differs between macOS and GNU sed.
   sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
   mv "$WEBAPP/index.html.tmp" "$WEBAPP/index.html"
+  # The page downloads app.js gzipped and un-gzips it itself (like the game data), so the progress
+  # bar counts real bytes and a host that doesn't compress still sends 7 MB, not 76 MB.
+  gzip -9 -n -c "$WEBAPP/app.js" > "$WEBAPP/app.js.gz"
 fi
 grep -E "BUILD (SUCCESSFUL|FAILED)|build peak memory" "$ROOT/web/build/teavm.log" || tail -20 "$ROOT/web/build/teavm.log"
 echo "missing APIs: $(grep -cE 'was not found|missing in the classpath' "$ROOT/web/build/teavm.log")"

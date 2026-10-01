@@ -25,7 +25,7 @@ steps below.
 | Game | `scripts/build-web` | `web/build/dist/js/webapp`, log `web/build/teavm.log` | about 5 min; it rewrites index.html without `sed -i`, so it runs on macOS and Linux (2026-10-01) |
 | Self-test | `scripts/selftest` (`SELFTEST=true`) | `web/build/dist/selftest` | about 35 s of checks plus about 5 min to build; see [[selftest]] |
 | Serve | `scripts/serve-web` | port 8090 | also the desktop preview config `forge-web` |
-| Static site | `scripts/build-site` | `web/build/site` (310 MB) | the game, `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |
+| Static site | `scripts/build-site` | `web/build/site` (245 MB) | the game (app.js only as `app.js.gz`), `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |
 | Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above on GitHub's runners for each published release, or by hand. The repository's `github-pages` environment must allow the `main` branch and `v*` tags, or a release's deploy job is rejected; see [[open-issues]] |
 
 ## TeaVM settings (environment variables read by `build.gradle.kts`)

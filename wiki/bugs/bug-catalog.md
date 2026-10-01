@@ -66,6 +66,7 @@ is filed.
 | `DeflaterOutputStream` wrote a second GZIP trailer on close | finish once; keep the Java fallback |
 | `effects/demo.gif` became an 11488x6480 texture and crashed the tab | skip huge assets in webdata |
 | Serializer hooks were never made callable, so the streams silently used plain fields, giving empty save headers and cards without rules (R11) | a reflective lookup that finds nothing must fail loudly; test the round trip, not just the write ([[saves]]) |
+| The loader counted decoded bytes against `Content-Length`, so on GitHub Pages, which gzips app.js on the fly, it showed "62 / 32 MB" (user report, 2026-10-01) | count bytes before un-gzipping, ship app.js as `app.js.gz`, and count a file the browser decoded only once it completes; tested against a server that compresses like Pages |
 | An unanchored `forge/` in `.gitignore` also matched `web/src/main/java/forge/`, so 10 source files (including `WebLauncher`) were left out of the repository (found 2026-10-01, before the first commit) | anchor ignore patterns (`/forge/`), and check a release by building from a clean checkout, not the working tree |
 | Card zip deflated per entry, inflated by TeaVM's JZlib (R11) | let the browser decompress (gzip with `DecompressionStream`), and never use compiled Java zlib on a hot path |
 

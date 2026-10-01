@@ -85,25 +85,30 @@
         status.textContent = "Downloading game data… " + (d / 1048576).toFixed(0) + " / " + (t / 1048576).toFixed(0) + " MB";
     }
 
-    // Game data (forge-data/) is stored gzipped as <name>.gz (scripts/build-webdata) and
-    // un-gzipped here, natively, as it arrives. The bar counts the bytes on the wire. If a server
-    // sends .gz files with Content-Encoding: gzip, the browser has already un-gzipped them, so check
-    // the first bytes (gzip starts with 1f 8b, and none of these files does otherwise).
-    async function download(url) {
-        const stored = url.startsWith("forge-data/");
-        const response = await fetch(stored ? url + ".gz" : url);
+    // Game data (forge-data/, scripts/build-webdata) and app.js (scripts/build-web) are stored
+    // gzipped as <name>.gz and un-gzipped here, natively, as they arrive. The bar counts the bytes
+    // on the wire, which only matches Content-Length while the browser leaves the body alone. A
+    // server that adds Content-Encoding (GitHub Pages does for .js) has the browser decode the
+    // body, so the stream delivers more bytes than Content-Length says; such a file counts once it
+    // has arrived. A .gz sent that way arrives already un-gzipped, so check the first bytes too
+    // (gzip starts with 1f 8b, and none of these files does otherwise).
+    async function download(url, gzipped) {
+        const response = await fetch(gzipped ? url.replace(/(\?|$)/, ".gz$1") : url);
         if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
         total[url] = Number(response.headers.get("Content-Length")) || 0;
+        const decoded = response.headers.has("Content-Encoding");
         let wire = 0;
         let body = response.body.pipeThrough(new TransformStream({
             transform(chunk, controller) {
-                wire += chunk.length;
-                done[url] = wire;
-                progress();
+                if (!decoded) {
+                    wire += chunk.length;
+                    done[url] = wire;
+                    progress();
+                }
                 controller.enqueue(chunk);
             }
         }));
-        if (stored) {
+        if (gzipped) {
             const [peek, rest] = body.tee();
             const peekReader = peek.getReader();
             const first = (await peekReader.read()).value;
@@ -123,6 +128,10 @@
         const bytes = new Uint8Array(size);
         let pos = 0;
         for (const c of chunks) { bytes.set(c, pos); pos += c.length; }
+        if (decoded) {
+            done[url] = total[url];
+            progress();
+        }
         return bytes;
     }
 
@@ -131,14 +140,14 @@
     window.forgePrefetch = {};
     async function prefetch() {
         const manifestUrl = "forge-data/manifest.txt";
-        const manifest = await download(manifestUrl);
+        const manifest = await download(manifestUrl, true);
         window.forgePrefetch[manifestUrl] = manifest;
         const urls = new Set();
         for (const line of new TextDecoder().decode(manifest).split("\n")) {
             const cols = line.split("\t");
             if (cols.length > 2 && cols[2].startsWith("forge-data/")) urls.add(cols[2].trim());
         }
-        await Promise.all([...urls].map(async url => { window.forgePrefetch[url] = await download(url); }));
+        await Promise.all([...urls].map(async url => { window.forgePrefetch[url] = await download(url, true); }));
     }
 
     // Saved games and preferences (forgeweb.fs.UserDataStore). Files under /forge/data/ are kept
@@ -186,7 +195,7 @@
     }
 
     async function loadApp() {
-        const code = await download("app.js?v=APP_VERSION");
+        const code = await download("app.js?v=APP_VERSION", true);
         window.forgeMark("app.js parse");
         const script = document.createElement("script");
         script.src = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
@@ -275,7 +284,7 @@
     // file itself.
     async function loadWorker() {
         try {
-            const code = await download("wfc-worker.js?v=WORKER_VERSION");
+            const code = await download("wfc-worker.js?v=WORKER_VERSION", false);
             window.forgeWfcUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
         } catch (e) {
             console.warn("wfc-worker.js not preloaded:", e);

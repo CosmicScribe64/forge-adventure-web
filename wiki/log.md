@@ -105,3 +105,16 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
 - The release's own deploy job was first rejected: GitHub created the `github-pages` environment
   allowing only the `main` branch, and a release runs from its tag. Added a `v*` tag rule to the
   environment and reran the deploy, which passed.
+
+## [2026-10-01] update | Loader progress on GitHub Pages, local folder renamed
+- User report from the live site: "Downloading game data… 62 / 32 MB". Pages gzips app.js on the
+  fly, so its Content-Length was 7.5 MB while the page counted 76 MB of decoded bytes. The page now
+  downloads `app.js.gz` (6.8 MB, written by `scripts/build-web`) and un-gzips it like the game
+  data, and counts any file the browser decoded only once it completes. Checked headless against
+  `serve.py` and a test server that compresses like Pages: the text never passed its total, and
+  both ended at "31 / 31 MB". The site is 245 MB now, since it no longer ships the raw app.js.
+- The local project folder was renamed to `~/Documents/Claude/forge-adventure-web`, and the
+  Obsidian vault entry with it.
+- Scryfall: Forge's own `ScryfallRateLimiter` (100 ms between `api.scryfall.com` requests, 500 ms
+  for search, backoff on 429; the `cards.scryfall.io` CDN is unthrottled) runs on green threads,
+  where `Thread.sleep` really waits. Not yet measured in a session: the test reached no card art.
