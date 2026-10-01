@@ -1,0 +1,43 @@
+# Checks every push to main and every pull request: the Forge patch still applies, Forge and the
+# game still compile, and the SelfTest checks pass in headless Chromium. Releases are published
+# by pages.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the wiki
+        run: wiki/tools/lint
+
+      - name: Clone Forge and apply the patch
+        run: scripts/update-forge
+
+      - name: Build Forge's jars
+        run: scripts/build-forge-libs
+
+      - name: Prepare the game data
+        run: scripts/build-webdata
+
+      - name: Run SelfTest
+        run: scripts/selftest || { tail -60 out/selftest-js.log; exit 1; }
+
+      - name: Compile the game
+        run: scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
