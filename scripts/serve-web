@@ -12,4 +12,4 @@ exec docker run --rm --name forge-web-serve -p "$PORT:8080" \
   -v "$ROOT/forge/forge-gui/res":/site/forge/res:ro \
   -v "$ROOT/web/webdata":/site/forge-data:ro \
   -v "$ROOT/web/tools/serve.py":/serve.py:ro \
-  -w /site shandalar-forge-build python3 /serve.py 8080
+  -w /site forge-adventure-web-build python3 /serve.py 8080

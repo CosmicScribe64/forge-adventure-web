@@ -81,3 +81,13 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
 - `scripts/dock` hands files back to the caller on Linux (the container's root owned them, which
   broke `build-web` on a Linux runner).
 - Pages: build-pipeline, overview, open-issues (Hosting section).
+
+## [2026-10-01] update | Renamed the project to Forge Adventure Web
+- The user chose "forge-adventure-web": "Shandalar" is the name of Forge's Adventure world, not of
+  this project. The GitHub repository is now CosmicScribe64/forge-adventure-web, and the hosted
+  build is at https://cosmicscribe64.github.io/forge-adventure-web/.
+- Changed the project name in README.md, CLAUDE.md and overview, and the Docker names: the image is
+  `forge-adventure-web-build`, and the cache volumes are `forge-adventure-web-m2`, `-gradle` and
+  `-pip`. "Shandalar" stays wherever it means the game world.
+- The first Pages run failed because services.gradle.org returned HTTP 500 while building the
+  Docker image. The Dockerfile now retries that download.

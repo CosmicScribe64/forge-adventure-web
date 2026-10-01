@@ -11,7 +11,7 @@ Everything builds in Docker (`docker/Dockerfile`, with JDK 17, Maven and Gradle)
 runs a command in the container with the project at `/work`. On Linux the container's root owns
 what it writes there, so `dock` hands those files back to the caller when the command exits
 (2026-10-01). Without that, `build-web`'s host-side steps fail on a Linux machine or runner. Maven and Gradle caches live in
-the Docker volumes `shandalar-m2` and `shandalar-gradle`. `README.md` walks a new user through the
+the Docker volumes `forge-adventure-web-m2` and `forge-adventure-web-gradle`. `README.md` walks a new user through the
 steps below.
 
 ## Steps

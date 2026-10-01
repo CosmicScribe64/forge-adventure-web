@@ -7,14 +7,14 @@ tags: [overview]
 
 # Overview of Forge Adventure in the browser
 
-**Shandalar** runs [[forge|Forge]]'s Adventure mode (a libGDX game, `forge-gui-mobile`) in a
+**Forge Adventure Web** runs [[forge|Forge]]'s Adventure mode (a libGDX game, `forge-gui-mobile`) in a
 browser. It compiles Forge's Java, changed as little as possible, to JavaScript with
 [[gdx-teavm]], which is built on [[teavm|TeaVM]] 0.15. The project goal (see [[plan-phases]]) is for Adventure to run
 well on phones.
 
 ## Where it stands (as of 2026-09-29)
 
-- **Hosted** at <https://cosmicscribe64.github.io/shandalar/> since 2026-10-01, rebuilt from
+- **Hosted** at <https://cosmicscribe64.github.io/forge-adventure-web/> since 2026-10-01, rebuilt from
   source for each release ([[build-pipeline]]).
 - **Playable end to end.** It goes from the tutorial through world generation and the overworld,
   then a town and shop purchase, then a duel won with rewards. Saves persist across reloads in

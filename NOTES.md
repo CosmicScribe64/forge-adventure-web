@@ -9,7 +9,7 @@ JavaScript with [gdx-teavm](https://github.com/xpenatan/gdx-teavm).
 |---|---|
 | `forge/` | shallow clone of Card-Forge/forge (gitignored) |
 | `docker/Dockerfile` | build image with JDK 17, Maven and Gradle |
-| `scripts/dock <cmd>` | runs a command in the build container; caches live in the Docker volumes `shandalar-m2` and `shandalar-gradle` |
+| `scripts/dock <cmd>` | runs a command in the build container; caches live in the Docker volumes `forge-adventure-web-m2` and `forge-adventure-web-gradle` |
 | `scripts/build-forge-libs` | builds the Forge modules and copies them and their dependencies into `web/libs` |
 | `web/` | Gradle project with the gdx-teavm plugin and `forge.web.WebLauncher` |
 

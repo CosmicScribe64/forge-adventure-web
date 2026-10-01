@@ -1,4 +1,4 @@
-# Shandalar
+# Forge Adventure Web
 
 Forge's Adventure mode (libGDX), compiled to JavaScript with gdx-teavm and TeaVM 0.15 so it runs
 in a browser. `NOTES.md` is the lab notebook and `PLAN.md` is the plan. Every change to Forge is

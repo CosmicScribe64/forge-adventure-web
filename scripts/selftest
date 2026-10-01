@@ -26,7 +26,7 @@ docker run -d --rm --name forge-selftest-serve -p 8092:8080 \
   -v "$SITE":/site \
   -v "$ROOT/forge/forge-gui/res":/site/forge/res:ro \
   -v "$ROOT/web/webdata":/site/forge-data:ro \
-  -w /site shandalar-forge-build python3 -m http.server 8080 >/dev/null
+  -w /site forge-adventure-web-build python3 -m http.server 8080 >/dev/null
 trap 'docker rm -f forge-selftest-serve >/dev/null 2>&1 || true' EXIT
 
 "$ROOT/scripts/webtest" --url http://host.docker.internal:8092/index.html --log out/selftest-$TARGET.log \

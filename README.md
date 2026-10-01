@@ -1,11 +1,11 @@
-# Shandalar
+# Forge Adventure Web
 
 [Forge](https://github.com/Card-Forge/forge)'s Adventure mode, the single-player Magic: The
 Gathering RPG, running in a web browser. The Java game (libGDX) is compiled to JavaScript with
 [gdx-teavm](https://github.com/xpenatan/gdx-teavm) and [TeaVM](https://teavm.org) 0.15, with as
 few changes to Forge as possible.
 
-**Play it at <https://cosmicscribe64.github.io/shandalar/>** in desktop Chrome. The first visit
+**Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>** in desktop Chrome. The first visit
 downloads about 30 MB, and the game needs about 1.1 GB of memory once you're in the world.
 
 ![The Shandalar overworld, running in Chrome](docs/overworld.png)
@@ -129,7 +129,7 @@ it as a SelfTest check first, fix it there, and then run the full game build.
 
 ## License
 
-Shandalar is licensed under the [GPL-3.0](LICENSE), like Forge. The patch is a derivative of
+Forge Adventure Web is licensed under the [GPL-3.0](LICENSE), like Forge. The patch is a derivative of
 Forge, and the compiled game contains Forge's code.
 
 A few files are modified copies of code from other projects, and they keep their original
@@ -151,7 +151,7 @@ you play.
 
 ## Disclaimer
 
-Shandalar is an unofficial fan project. It is not affiliated with or endorsed by Wizards of the
+Forge Adventure Web is an unofficial fan project. It is not affiliated with or endorsed by Wizards of the
 Coast or the Forge team. Magic: The Gathering is a trademark of Wizards of the Coast LLC.
 
 ## Credits
