@@ -91,3 +91,14 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
   `-pip`. "Shandalar" stays wherever it means the game world.
 - The first Pages run failed because services.gradle.org returned HTTP 500 while building the
   Docker image. The Dockerfile now retries that download.
+
+## [2026-10-01] update | Live on GitHub Pages, release v0.1.0
+- The Pages workflow's second run passed in 7.5 minutes on GitHub's runner (the first failed on
+  an HTTP 500 from services.gradle.org). On Linux, `scripts/dock` handing files back to the caller
+  let `build-web` finish.
+- The live site, played headless from this machine: title at 65 s (24 s of it downloading), world
+  generated in 12.1 s, World hash `cf3e72545c906f8e`, no console errors. Pages gzips app.js to
+  7.5 MB, so a first visit downloads about 32 MB in total. Pages sends `Cache-Control:
+  max-age=600` for every file and ignores the long caching `serve.py` gives versioned URLs.
+- Published release v0.1.0 (Forge Adventure Web 0.1.0); its notes and the repository's About
+  sidebar link to https://cosmicscribe64.github.io/forge-adventure-web/.
