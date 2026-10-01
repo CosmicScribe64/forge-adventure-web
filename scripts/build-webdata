@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Prepare Forge's game data for the web build.
+
+Writes to web/webdata/ (served at /forge-data/):
+  manifest.txt     every file under forge-gui/res as "res/<path>\t<size>[\t<url>]"
+  cardsfolder.zip  all card scripts in one download (Forge reads it natively,
+                   same layout as res/cardsfolder/mkzip.sh). Entries are stored, not
+                   deflated, because Forge would inflate 34,000 of them in Java (TeaVM),
+                   which took a quarter of startup. The whole file is gzipped instead.
+  packs/<dir>.pack folders Forge reads file by file at startup, concatenated into one
+                   download each; their manifest lines add "<pack url>\t<offset>"
+  packs/startup.pack the other files a new game reads from page load to the world map
+                   (web/startup-files.txt, recorded by scripts/record-startup). Fetched one
+                   by one, they were about 150 blocking requests, each a network round trip.
+Every file here is written gzipped, as <name>.gz only. The page un-gzips them natively while
+downloading (web/html/index.html, or forgeweb.fs.Http for anything not prefetched), whatever the
+web server does. One gzip stream over all card scripts is also smaller than deflating each script
+on its own.
+It also copies the small fallback skin to web/webassets/, which gdx-teavm preloads.
+The page fetches res/ files on demand from /forge/res/ (see scripts/serve-web).
+"""
+import gzip
+import os
+import shutil
+import zipfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RES = os.path.join(ROOT, "forge", "forge-gui", "res")
+OUT = os.path.join(ROOT, "web", "webdata")
+ASSETS = os.path.join(ROOT, "web", "webassets")
+
+# Not needed in the browser (editor sources, build helpers).
+SKIP_SUFFIXES = (".xcf", ".psd", ".sh", ".gitattributes", ".gitkeep", ".md")
+# Folders Forge reads whole at startup, fetched as one request per pack instead of one per file
+# (found by counting requests in the serve-web log; each was about 900 sequential fetches).
+PACK_DIRS = ("editions", "tokenscripts", "setlookup", "formats", "blockdata")
+# Left out on purpose; Forge skips each when the file is missing.
+SKIP_FILES = {
+    # It has 248 frames of 718x405, and GifDecoder packs them into one 11488x6480 texture, which
+    # crashes the tab (memory, and over WebGL's texture size limit). Only the Adventure blurb animates it.
+    "effects/demo.gif",
+}
+# Whole folders left out, for the same reason.
+SKIP_DIRS = {
+    # Card-based deck generation data (CardRelationMatrixGenerator, CardArchetypeLDAGenerator). It
+    # is JDK object serialization, which the web object streams can't read, so loading always
+    # failed ("Error reading matrix data") after downloading about 7 MB at every startup. When the
+    # folder is missing, Forge falls back to its other deck generation, as it did after the failed
+    # read.
+    "deckgendecks",
+}
+
+
+STARTUP_LIST = os.path.join(ROOT, "web", "startup-files.txt")
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    startup = set()
+    if os.path.exists(STARTUP_LIST):
+        with open(STARTUP_LIST, encoding="utf-8") as f:
+            startup = {line.strip() for line in f if line.strip() and not line.startswith("#")}
+    cards_dir = os.path.join(RES, "cardsfolder")
+
+    zip_path = os.path.join(OUT, "cardsfolder.zip")
+    count = 0
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as z:
+        for dirpath, _, files in os.walk(cards_dir):
+            for f in sorted(files):
+                if f.endswith(".txt"):
+                    full = os.path.join(dirpath, f)
+                    z.write(full, os.path.relpath(full, cards_dir))
+                    count += 1
+    print(f"cardsfolder.zip: {count} cards, {os.path.getsize(zip_path) // 1024} KB")
+
+    lines = []
+    total = 0
+    packs_dir = os.path.join(OUT, "packs")
+    shutil.rmtree(packs_dir, ignore_errors=True)
+    os.makedirs(packs_dir)
+    packs = {}  # open pack file for each top-level folder
+    for dirpath, dirs, files in os.walk(RES):
+        dirs.sort()
+        rel_dir = os.path.relpath(dirpath, RES)
+        if rel_dir == "cardsfolder" or rel_dir.startswith("cardsfolder" + os.sep):
+            continue  # replaced by the zip below
+        for f in sorted(files):
+            if f.endswith(SKIP_SUFFIXES) or f.startswith("."):
+                continue
+            full = os.path.join(dirpath, f)
+            rel = os.path.relpath(full, RES).replace(os.sep, "/")
+            if rel in SKIP_FILES or rel.split("/", 1)[0] in SKIP_DIRS:
+                continue
+            size = os.path.getsize(full)
+            top = rel.split("/", 1)[0]
+            if not (top in PACK_DIRS and "/" in rel) and rel in startup:
+                top = "startup"
+            if (top in PACK_DIRS and "/" in rel) or top == "startup":
+                if top not in packs:
+                    packs[top] = open(os.path.join(packs_dir, top + ".pack"), "wb")
+                pack = packs[top]
+                offset = pack.tell()
+                with open(full, "rb") as src:
+                    pack.write(src.read())
+                lines.append(f"res/{rel}\t{size}\tforge-data/packs/{top}.pack\t{offset}")
+            else:
+                lines.append(f"res/{rel}\t{size}")
+            total += size
+    for pack in packs.values():
+        pack.close()
+    print("packs: " + ", ".join(f"{d} {os.path.getsize(os.path.join(packs_dir, d + '.pack')) // 1024} KB" for d in sorted(packs)))
+    lines.append(f"res/cardsfolder/cardsfolder.zip\t{os.path.getsize(zip_path)}\tforge-data/cardsfolder.zip")
+    with open(os.path.join(OUT, "manifest.txt"), "w", encoding="utf-8") as m:
+        m.write("\n".join(lines) + "\n")
+    print(f"manifest.txt: {len(lines)} files, {total // (1024 * 1024)} MB of res/ available on demand")
+
+    for dirpath, _, files in os.walk(OUT):
+        for f in files:
+            if f.endswith(".gz"):
+                continue
+            full = os.path.join(dirpath, f)
+            with open(full, "rb") as src, open(full + ".gz", "wb") as dst:
+                # mtime=0: the same data gives the same bytes (no spurious changes).
+                dst.write(gzip.compress(src.read(), compresslevel=9, mtime=0))
+            before = os.path.getsize(full)
+            os.remove(full)
+            print(f"{os.path.relpath(full, OUT)}.gz: {before // 1024} KB -> {os.path.getsize(full + '.gz') // 1024} KB")
+
+    skin_src = os.path.join(ROOT, "forge", "forge-gui-mobile-dev", "fallback_skin")
+    skin_dst = os.path.join(ASSETS, "fallback_skin")
+    shutil.rmtree(skin_dst, ignore_errors=True)
+    shutil.copytree(skin_src, skin_dst)
+    print(f"fallback_skin copied to {os.path.relpath(skin_dst, ROOT)}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Mechanical wiki health check (see SCHEMA.md "Lint").
+
+Reports: broken [[links]], duplicate page names, orphans (no inbound links), pages missing
+from index.md, and pages without frontmatter or without type/updated. Exits with 1 if anything is
+broken.
+Usage: wiki/tools/lint
+"""
+import os
+import re
+import sys
+
+WIKI = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SKIP_DIRS = {"raw", "tools", ".obsidian"}
+SPECIAL = {"index", "log", "SCHEMA", "overview"}
+LINK = re.compile(r"\[\[([^\]|#\\]+)(?:#[^\]|]*)?(?:\\?\|[^\]]*)?\]\]")
+CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
+
+pages = {}
+for root, dirs, files in os.walk(WIKI):
+    dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+    for f in files:
+        if f.endswith(".md"):
+            name = f[:-3]
+            path = os.path.join(root, f)
+            if name in pages:
+                print(f"duplicate page name: {name} ({pages[name]} and {path})")
+            pages[name] = path
+
+inbound = {n: set() for n in pages}
+problems = 0
+for name, path in sorted(pages.items()):
+    text = open(path, encoding="utf-8").read()
+    rel = os.path.relpath(path, WIKI)
+    if name != "SCHEMA":
+        if not text.startswith("---\n"):
+            print(f"no frontmatter: {rel}")
+            problems += 1
+        else:
+            fm = text.split("\n---", 1)[0]
+            for key in ("type:", "updated:"):
+                if key not in fm:
+                    print(f"frontmatter missing {key[:-1]}: {rel}")
+                    problems += 1
+    for target in LINK.findall(CODE.sub("", text)):
+        target = target.strip()
+        if target in pages:
+            if target != name:
+                inbound[target].add(name)
+        else:
+            print(f"broken link: {rel} -> [[{target}]]")
+            problems += 1
+
+index_text = open(pages["index"], encoding="utf-8").read() if "index" in pages else ""
+for name in sorted(pages):
+    if name in SPECIAL:
+        continue
+    if not inbound[name]:
+        print(f"orphan (no inbound links): {name}")
+    if f"[[{name}]]" not in index_text:
+        print(f"not in index.md: {name}")
+        problems += 1
+
+print(f"{len(pages)} pages checked, {problems} problem(s)")
+sys.exit(1 if problems else 0)

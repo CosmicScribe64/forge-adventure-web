@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Check out the Forge commit in FORGE_COMMIT and apply our patches.
+#   scripts/update-forge            # sync forge/ to the pinned commit
+#   scripts/update-forge <ref>      # move the pin to <ref> (branch, tag or commit), then sync
+# Afterwards run scripts/build-forge-libs and rebuild web/.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if [ ! -d forge/.git ]; then
+  git clone --filter=blob:none https://github.com/Card-Forge/forge forge
+fi
+
+if [ $# -ge 1 ]; then
+  git -C forge fetch --depth 1 origin "$1"
+  git -C forge rev-parse FETCH_HEAD > FORGE_COMMIT
+fi
+
+COMMIT="$(cat FORGE_COMMIT)"
+git -C forge fetch --depth 1 origin "$COMMIT"
+git -C forge checkout -q -f "$COMMIT"
+git -C forge clean -q -fd -e target
+
+for p in patches/*.patch; do
+  if ! git -C forge apply --check "../$p" 2>/dev/null; then
+    echo "Patch $p no longer applies to $COMMIT; update it by hand." >&2
+    exit 1
+  fi
+  git -C forge apply "../$p"
+  echo "applied $p"
+done
+echo "forge/ is at $COMMIT with patches applied"

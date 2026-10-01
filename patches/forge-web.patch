@@ -1,0 +1,1266 @@
+diff --git a/forge-core/src/main/java/forge/util/FileUtil.java b/forge-core/src/main/java/forge/util/FileUtil.java
+index 6463874a..00782663 100644
+--- a/forge-core/src/main/java/forge/util/FileUtil.java
++++ b/forge-core/src/main/java/forge/util/FileUtil.java
+@@ -128,7 +128,7 @@ public final class FileUtil {
+     }
+ 
+     public static void writeFile(File file, String text) {
+-        try (PrintWriter p = new PrintWriter(file)) {
++        try (PrintWriter p = new PrintWriter(new FileOutputStream(file))) {
+             p.print(text);
+         } catch (final Exception ex) {
+             throw new RuntimeException("FileUtil : writeFile() error, problem writing file - " + file + " : " + ex);
+@@ -164,7 +164,7 @@ public final class FileUtil {
+      *            a {@link java.util.List} object.
+      */
+     public static void writeFile(File file, Collection<?> data) {
+-        try (PrintWriter p = new PrintWriter(file)) {
++        try (PrintWriter p = new PrintWriter(new FileOutputStream(file))) {
+             for (Object o : data) {
+                 p.println(o);
+             }
+diff --git a/forge-core/src/main/java/forge/util/ImageUtil.java b/forge-core/src/main/java/forge/util/ImageUtil.java
+index a2d0dddf..5188c501 100644
+--- a/forge-core/src/main/java/forge/util/ImageUtil.java
++++ b/forge-core/src/main/java/forge/util/ImageUtil.java
+@@ -22,7 +22,21 @@ public class ImageUtil {
+         return (float)Math.round(actualSize) * (float)Math.pow(2, (double)Math.round(Math.log(baseSize / actualSize) / Math.log(2)));
+     }
+ 
++    // Card images are looked up by key every time a card is drawn; a key's card doesn't change once
++    // found (misses aren't kept, because cards can be added later), so remember the lookups.
++    private static final java.util.Map<String, PaperCard> paperCardsByImageKey = new java.util.concurrent.ConcurrentHashMap<>();
++
+     public static PaperCard getPaperCardFromImageKey(final String imageKey) {
++        if (imageKey != null) {
++            PaperCard known = paperCardsByImageKey.get(imageKey);
++            if (known != null) return known;
++        }
++        PaperCard found = findPaperCardFromImageKey(imageKey);
++        if (found != null) paperCardsByImageKey.put(imageKey, found);
++        return found;
++    }
++
++    private static PaperCard findPaperCardFromImageKey(final String imageKey) {
+         String key;
+         if (imageKey == null || imageKey.length() < 2) {
+             return null;
+diff --git a/forge-core/src/main/java/forge/util/Localizer.java b/forge-core/src/main/java/forge/util/Localizer.java
+index 8839ecee..f882c77e 100644
+--- a/forge-core/src/main/java/forge/util/Localizer.java
++++ b/forge-core/src/main/java/forge/util/Localizer.java
+@@ -1,10 +1,11 @@
+ package forge.util;
+ 
+ import java.io.File;
++import java.io.FileInputStream;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.io.Reader;
+ import java.io.UnsupportedEncodingException;
+-import java.net.MalformedURLException;
+-import java.net.URL;
+-import java.net.URLClassLoader;
+ import java.nio.charset.Charset;
+ import java.nio.charset.StandardCharsets;
+ import java.text.MessageFormat;
+@@ -152,21 +153,11 @@ public class Localizer {
+ 
+         //Don't reload the language if nothing changed
+         if (oldLocale == null || !oldLocale.equals(locale)) {
+-            File file = new File(languagesDirectory);
+-            URL[] urls = null;
+-
+-            try {
+-                urls = new URL[] { file.toURI().toURL() };
+-            } catch (MalformedURLException e) {
+-                e.printStackTrace();
+-            }
+-
+-            ClassLoader loader = new URLClassLoader(urls);
+             currentLanguageRegionID = languageRegionID;
+ 
+             try {
+-                englishBundle = ResourceBundle.getBundle("en-US", new Locale("en", "US"), loader);
+-                resourceBundle = ResourceBundle.getBundle(languageRegionID, new Locale(splitLocale[0], splitLocale[1]), loader);
++                englishBundle = loadBundle(languagesDirectory, "en-US");
++                resourceBundle = loadBundle(languagesDirectory, languageRegionID);
+             } catch (NullPointerException | MissingResourceException e) {
+                 //If the language can't be loaded, default to US English
+                 resourceBundle = englishBundle;
+@@ -175,7 +166,7 @@ public class Localizer {
+ 
+             adventureBundle = null;
+ 
+-            System.out.println("Language '" + resourceBundle.getBaseBundleName() + "' loaded successfully.");
++            System.out.println("Language '" + currentLanguageRegionID + "' loaded successfully.");
+ 
+             notifyObservers();
+         }
+@@ -187,14 +178,25 @@ public class Localizer {
+             return;
+         }
+         try {
+-            URL[] urls = { new File(languagesDirectory).toURI().toURL() };
+-            ClassLoader adventureLoader = new URLClassLoader(urls);
+-            adventureBundle = ResourceBundle.getBundle("adventure-" + currentLanguageRegionID, locale, adventureLoader);
+-        } catch (final MalformedURLException | NullPointerException | MissingResourceException e) {
++            adventureBundle = loadBundle(languagesDirectory, "adventure-" + currentLanguageRegionID);
++        } catch (final NullPointerException | MissingResourceException e) {
+             adventureBundle = null;
+         }
+     }
+ 
++    /**
++     * Reads {@code <directory>/<name>.properties} as UTF-8, as ResourceBundle.getBundle does,
++     * without a URLClassLoader (unavailable on some platforms, e.g. the web build).
++     */
++    private static ResourceBundle loadBundle(final String directory, final String name) {
++        final File file = new File(directory, name + ".properties");
++        try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
++            return new PropertyResourceBundle(reader);
++        } catch (final IOException e) {
++            throw new MissingResourceException("Can't read " + file, name, "");
++        }
++    }
++
+     private String lookup(final String key, final boolean forceEnglish) {
+         if (!forceEnglish && adventureBundle != null) {
+             try {
+diff --git a/forge-gui-mobile/src/forge/Forge.java b/forge-gui-mobile/src/forge/Forge.java
+index 4f64c66e..8d0b3ccd 100644
+--- a/forge-gui-mobile/src/forge/Forge.java
++++ b/forge-gui-mobile/src/forge/Forge.java
+@@ -1012,14 +1012,29 @@ public class Forge implements ApplicationListener {
+     @Override
+     public void resize(int width, int height) {
+         try {
++            if (width > 0 && height > 0 && (width != screenWidth || height != screenHeight)) {
++                // The screen changed size (window resized, full screen, rotation): lay out again at
++                // the new size. The orientation (portrait or landscape layouts) stays as it was at startup.
++                screenWidth = width;
++                screenHeight = height;
++                if (camera instanceof OrthographicCamera) {
++                    ((OrthographicCamera) camera).setToOrtho(false, width, height);
++                }
++                if (isMobileAdventureMode) {
++                    forge.adventure.scene.Scene.updateView(width, height);
++                    System.out.println("Screen resized to " + width + "x" + height + ", Adventure view "
++                            + forge.adventure.scene.Scene.getViewWidth() + "x" + forge.adventure.scene.Scene.getViewHeight());
++                }
++            }
+             if (currentScreen != null) {
+                 currentScreen.setSize(width, height);
+             } else if (splashScreen != null) {
+                 splashScreen.setSize(width, height);
+             }
+             if (currentScene != null)
+-                currentScene.resize(width, height);
++                currentScene.refreshView(width, height);
+         } catch (Exception ex) {
++            ex.printStackTrace();
+             //graphics.end();
+             //check if sentry is enabled, if not it will call the gui interface but here we end the graphics so we only send it via sentry..
+             if (BugReporter.isSentryEnabled())
+@@ -1141,6 +1156,7 @@ public class Forge implements ApplicationListener {
+         Adventure.getInstance().sceneWasSwapped = true;
+         currentScene = newScene;
+ 
++        currentScene.refreshView(screenWidth, screenHeight); // if the screen changed size meanwhile
+         currentScene.enter();
+         if (currentScene instanceof DuelScene)
+             Forge.clearTransitionScreen(true);
+diff --git a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java b/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
+index 7b69854c..861fcc8c 100644
+--- a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
++++ b/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
+@@ -455,11 +455,9 @@ public class AdventurePlayer implements Serializable, SaveFileContent {
+             adventureMode = AdventureModes.valueOf(_mode);
+ 
+         if (data.containsKey("colorIdentity")) {
+-            String temp = data.readString("colorIdentity");
+-            if (temp != null)
+-                setColorIdentity(temp);
+-            else
+-                colorIdentity = ColorSet.WUBRG;
++            // save() stores ColorSet.getColor(), a byte mask (through store(String, int)). Reading it
++            // back as a string gave "" (colorless) on the JDK and failed on the web.
++            colorIdentity = ColorSet.fromMask(data.readInt("colorIdentity"));
+         } else
+             colorIdentity = ColorSet.WUBRG;
+ 
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/HudScene.java b/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
+index af7d8ddd..415842bf 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
+@@ -25,6 +25,12 @@ public abstract class HudScene extends Scene implements InputProcessor, IAfterMa
+         hud = GameHUD.getInstance();
+     }
+ 
++    @Override
++    public void resize(int width, int height) {
++        stage.applyView(width, height);
++        hud.applyView(width, height);
++    }
++
+     @Override
+     public boolean touchCancelled (int x, int y, int pointer, int button) {
+         return touchUp(x, y, pointer, button);
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java b/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
+index d3013dbf..03c4d1f1 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
+@@ -505,40 +505,14 @@ public class RewardScene extends UIScene {
+                 bestCardHeight = h;
+             }
+         }
+-        float AR = 480f / 270f;
+-        int x = Forge.getDeviceAdapter().getRealScreenSize(false).getLeft();
+-        int y = Forge.getDeviceAdapter().getRealScreenSize(false).getRight();
+-        int realX = Forge.getDeviceAdapter().getRealScreenSize(true).getLeft();
+-        int realY = Forge.getDeviceAdapter().getRealScreenSize(true).getRight();
+-        float fW = Math.max(x, y);
+-        float fH = Math.min(x, y);
+-        float mul = fW / fH < AR ? AR / (fW / fH) : (fW / fH) / AR;
+-        if (fW / fH >= 2f) {//tall display
+-            mul = (fW / fH) - ((fW / fH) / AR);
+-            if ((fW / fH) >= 2.1f && (fW / fH) < 2.2f)
+-                mul *= 0.9f;
+-            else if ((fW / fH) > 2.2f) //ultrawide 21:9 Galaxy Fold, Huawei X2, Xperia 1
+-                mul *= 0.8f;
+-        }
++        // The view extends to the screen's shape (Scene.getViewWidth/Height) instead of stretching a
++        // 16:9 layout, so the cards need no widening for the aspect ratio. Only the player's own
++        // card size setting applies.
+         cardHeight = bestCardHeight * 0.90f;
+         Float custom = Forge.isLandscapeMode()
+             ? Config.instance().getSettingData().rewardCardAdjLandscape
+             : Config.instance().getSettingData().rewardCardAdj;
+-        if (custom != null && custom != 1f) {
+-            mul *= custom;
+-        } else {
+-            if (realX > x || realY > y) {
+-                mul *= Forge.isLandscapeMode() ? 0.95f : 1.05f;
+-            } else {
+-                //immersive | no navigation and/or showing cutout cam
+-                if (fW / fH > 2.2f)
+-                    mul *= Forge.isLandscapeMode() ? 1.1f : 1.6f;
+-                else if (fW / fH >= 2.1f)
+-                    mul *= Forge.isLandscapeMode() ? 1.05f : 1.5f;
+-                else if (fW / fH >= 2f)
+-                    mul *= Forge.isLandscapeMode() ? 1f : 1.4f;
+-            }
+-        }
++        float mul = custom != null ? custom : 1f;
+         cardWidth = (cardHeight / CARD_WIDTH_TO_HEIGHT) * mul;
+ 
+         yOff += (targetHeight - (cardHeight * numberOfRows)) / 2f;
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java b/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
+index cf2f83b9..4cb2db95 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
+@@ -379,10 +379,15 @@ public class SaveLoadScene extends UIScene {
+                          ObjectInputStream oos = new ObjectInputStream(inf)) {
+                         int slot = WorldSave.filenameToSlot(name.getName());
+                         WorldSaveHeader worldSaveHeader = (WorldSaveHeader) oos.readObject();
+-                        previews.put(slot, worldSaveHeader);
++                        if (worldSaveHeader != null && worldSaveHeader.name != null) {
++                            previews.put(slot, worldSaveHeader);
++                        } else {
++                            System.err.println("Ignoring save without a readable header: " + name.getName());
++                        }
+                     }
+-                } catch (ClassNotFoundException | IOException | GdxRuntimeException e) {
+-                    //e.printStackTrace();
++                } catch (Exception e) {
++                    // One unreadable save (older format, damaged file) must not break the list.
++                    System.err.println("Ignoring unreadable save " + name.getName() + ": " + e);
+                 }
+             }
+         }
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/Scene.java b/forge-gui-mobile/src/forge/adventure/scene/Scene.java
+index a413b0b3..c532a661 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/Scene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/Scene.java
+@@ -1,5 +1,6 @@
+ package forge.adventure.scene;
+ 
++import com.badlogic.gdx.Gdx;
+ import com.badlogic.gdx.controllers.Controller;
+ import com.badlogic.gdx.controllers.ControllerListener;
+ import com.badlogic.gdx.controllers.Controllers;
+@@ -82,6 +83,55 @@ public abstract class Scene implements Disposable {
+         return Forge.isLandscapeMode() ? Config.instance().getConfigData().screenHeight : Config.instance().getConfigData().screenWidth;
+     }
+ 
++    // The view: the intended (design) size extended in one dimension to the screen's shape, so a
++    // screen that isn't 16:9 shows more of the map instead of stretching it. Layouts are still
++    // made for the intended size (see ViewLayout).
++    private static float viewWidth, viewHeight;
++    private static int viewVersion;
++    private int layoutVersion;
++
++    public static float getViewWidth() {
++        if (viewWidth == 0) updateView(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
++        return viewWidth;
++    }
++
++    public static float getViewHeight() {
++        if (viewHeight == 0) updateView(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
++        return viewHeight;
++    }
++
++    /** Recomputes the view for a screen of this size (Forge.resize). */
++    public static void updateView(int screenWidth, int screenHeight) {
++        float iw = getIntendedWidth(), ih = getIntendedHeight();
++        float w = iw, h = ih;
++        if (screenWidth > 0 && screenHeight > 0) {
++            float aspect = (float) screenWidth / screenHeight;
++            if (aspect > iw / ih) w = ih * aspect;
++            else h = iw / aspect;
++        }
++        if (w != viewWidth || h != viewHeight) {
++            viewWidth = w;
++            viewHeight = h;
++            viewVersion++;
++        }
++    }
++
++    /**
++     * Lays the scene out for this screen if it hasn't been yet: after the view changed shape, or
++     * the screen changed size (viewports must know the size to map touches). Forge.switchScene
++     * and Forge.resize call this.
++     */
++    public void refreshView(int screenWidth, int screenHeight) {
++        if (layoutVersion != viewVersion || laidOutWidth != screenWidth || laidOutHeight != screenHeight) {
++            layoutVersion = viewVersion;
++            laidOutWidth = screenWidth;
++            laidOutHeight = screenHeight;
++            resize(screenWidth, screenHeight);
++        }
++    }
++
++    private int laidOutWidth, laidOutHeight;
++
+     public abstract void act(float delta);
+ 
+     public abstract void render();
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/StartScene.java b/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
+index 4ded210a..5cc28c3a 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
+@@ -52,6 +52,11 @@ public class StartScene extends UIScene {
+ 
+         saveButton.setVisible(false);
+         resumeButton.setVisible(false);
++        // The browser build is Adventure-only, and a web page can't exit.
++        if (Boolean.getBoolean("forge.web")) {
++            ui.findActor("Exit").setVisible(false);
++            ui.findActor("Switch").setVisible(false);
++        }
+         version.setHeight(5);
+         version.skipToTheEnd();
+         ui.addActor(version);
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java b/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
+index 7c13c576..39057f86 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
+@@ -88,8 +88,8 @@ public class TileMapScene extends HudScene {
+ 
+         float camX = stage.getCamera().position.x;
+         float camY = stage.getCamera().position.y;
+-        float intWidth = Scene.getIntendedWidth();
+-        float intHeight = Scene.getIntendedHeight();
++        float intWidth = Scene.getViewWidth();
++        float intHeight = Scene.getViewHeight();
+ 
+         tiledMapRenderer.setView(stage.getCamera().combined, camX - intWidth / 2.0f, camY - intHeight / 2.0f, intWidth, intHeight);
+         if (!Forge.isLandscapeMode()) {
+diff --git a/forge-gui-mobile/src/forge/adventure/scene/UIScene.java b/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
+index ab434e96..7edd65d1 100644
+--- a/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
++++ b/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
+@@ -20,6 +20,7 @@ import com.github.tommyettinger.textra.TextraLabel;
+ import forge.Forge;
+ import forge.FrameRate;
+ import forge.adventure.stage.GameHUD;
++import forge.adventure.util.ViewLayout;
+ import forge.adventure.util.*;
+ 
+ import java.time.LocalTime;
+@@ -202,7 +203,7 @@ public class UIScene extends Scene {
+     public UIScene(String uiFilePath) {
+         textboxOpen = false;
+         uiFile = uiFilePath;
+-        stage = new Stage(new ScalingViewport(Scaling.stretch, getIntendedWidth(), getIntendedHeight()), Forge.getGraphics().getBatch()) {
++        stage = new Stage(new ScalingViewport(Scaling.stretch, getViewWidth(), getViewHeight()), Forge.getGraphics().getBatch()) {
+             @Override
+             public boolean keyUp(int keycode) {
+                 keyReleased(keycode);
+@@ -229,6 +230,7 @@ public class UIScene extends Scene {
+         possibleSelectionStack.add(ui.selectActors);
+         screenImage = ui.findActor("lastScreen");
+         stage.addActor(ui);
++        ViewLayout.anchor(ui);
+     }
+ 
+     public void removeDialog() {
+@@ -774,6 +776,8 @@ public class UIScene extends Scene {
+ 
+     @Override
+     public void resize(int width, int height) {
++        stage.getViewport().setWorldSize(getViewWidth(), getViewHeight());
+         stage.getViewport().update(width, height, true);
++        ViewLayout.anchor(ui);
+     }
+ }
+diff --git a/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java b/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
+index 52f73cb7..550d2666 100644
+--- a/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
++++ b/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
+@@ -51,6 +51,7 @@ import forge.adventure.scene.MapViewScene;
+ import forge.adventure.scene.QuestLogScene;
+ import forge.adventure.scene.Scene;
+ import forge.adventure.scene.TileMapScene;
++import forge.adventure.util.ViewLayout;
+ import forge.adventure.util.AdventureQuestController;
+ import forge.adventure.util.Config;
+ import forge.adventure.util.Controls;
+@@ -110,7 +111,7 @@ public class GameHUD extends Stage {
+     private int viewHeight = 150;
+ 
+     private GameHUD(GameStage gameStage) {
+-        super(new ScalingViewport(Scaling.stretch, Scene.getIntendedWidth(), Scene.getIntendedHeight()), Forge.getGraphics().getBatch());
++        super(new ScalingViewport(Scaling.stretch, Scene.getViewWidth(), Scene.getViewHeight()), Forge.getGraphics().getBatch());
+         instance = this;
+         this.gameStage = gameStage;
+ 
+@@ -127,6 +128,7 @@ public class GameHUD extends Stage {
+         deckActor = ui.findActor("deck");
+         openMapActor = ui.findActor("openmap");
+         ui.onButtonPress("openmap", this::openMap);
++        ViewLayout.anchor(ui);
+         menuActor = ui.findActor("menu");
+         referenceX = menuActor.getX();
+         logbookActor = ui.findActor("logbook");
+@@ -542,11 +544,21 @@ public class GameHUD extends Stage {
+         abilityButtonMap.clear();
+     }
+ 
++    /** Lays the HUD out for the current view on a screen this big (HudScene.resize). */
++    public void applyView(int screenWidth, int screenHeight) {
++        getViewport().setWorldSize(Scene.getViewWidth(), Scene.getViewHeight());
++        getViewport().update(screenWidth, screenHeight, true);
++        ViewLayout.anchor(ui);
++        referenceX = menuActor.getX();
++        if (!abilityButtonMap.isEmpty()) updateAbility();
++    }
++
+     void updateAbility() {
+         clearAbility();
+         setAbilityButton(AdventurePlayer.current().getEquippedAbility1());
+         setAbilityButton(AdventurePlayer.current().getEquippedAbility2());
+-        float x = Forge.isLandscapeMode() ? 426f : 216f;
++        // 54 from the right edge (426 of 480, 216 of 270), wherever that edge is in the view
++        float x = Scene.getViewWidth() - 54f;
+         float y = Forge.isLandscapeMode() ? 10f : 60f;
+         float w = 45f;
+         float h = 35f;
+diff --git a/forge-gui-mobile/src/forge/adventure/stage/GameStage.java b/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
+index eb6d0ddb..c755e946 100644
+--- a/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
++++ b/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
+@@ -1,5 +1,6 @@
+ package forge.adventure.stage;
+ 
++import com.badlogic.gdx.Gdx;
+ import com.badlogic.gdx.Input;
+ import com.badlogic.gdx.controllers.Controller;
+ import com.badlogic.gdx.files.FileHandle;
+@@ -328,6 +329,7 @@ public abstract class GameStage extends Stage {
+             GameStage.this.getPlayerSprite();
+         });
+         camera = (OrthographicCamera) getCamera();
++        applyView(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+ 
+         backgroundSprites = new Group();
+         foregroundSprites = new SpriteGroup();
+@@ -346,6 +348,17 @@ public abstract class GameStage extends Stage {
+         getViewport().setWorldSize(width, height);
+     }
+ 
++    /**
++     * Shows Scene.getViewWidth/Height of the map on a screen this big. (The viewport's world size is
++     * the whole map, used for clamping, so the camera's visible size is set here, not by it.)
++     */
++    public void applyView(int screenWidth, int screenHeight) {
++        if (screenWidth > 0 && screenHeight > 0) getViewport().setScreenBounds(0, 0, screenWidth, screenHeight);
++        camera.viewportWidth = Scene.getViewWidth();
++        camera.viewportHeight = Scene.getViewHeight();
++        camera.update();
++    }
++
+     public PlayerSprite getPlayerSprite() {
+         if (player == null) {
+             player = new PlayerSprite(this);
+@@ -436,8 +449,8 @@ public abstract class GameStage extends Stage {
+             }
+         }
+ 
+-        camera.position.x = Math.min(Math.max(Scene.getIntendedWidth() / 2f, player.pos().x), getViewport().getWorldWidth() - Scene.getIntendedWidth() / 2f);
+-        camera.position.y = Math.min(Math.max(Scene.getIntendedHeight() / 2f, player.pos().y), getViewport().getWorldHeight() - Scene.getIntendedHeight() / 2f);
++        camera.position.x = Math.min(Math.max(Scene.getViewWidth() / 2f, player.pos().x), getViewport().getWorldWidth() - Scene.getViewWidth() / 2f);
++        camera.position.y = Math.min(Math.max(Scene.getViewHeight() / 2f, player.pos().y), getViewport().getWorldHeight() - Scene.getViewHeight() / 2f);
+ 
+         onActing(delta);
+     }
+diff --git a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java b/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
+index e1d6824b..ef37e7f3 100644
+--- a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
++++ b/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
+@@ -80,6 +80,22 @@ public class CardUtil {
+             }
+         }
+ 
++        private Set<String> recentEditionCodes;
++
++        /** Codes of the editions released on or after minDate (computed once per predicate). */
++        private Set<String> editionsSinceMinDate() {
++            if (recentEditionCodes == null) {
++                Date d = parseDate(this.minDate);
++                Set<String> codes = new HashSet<>();
++                for (CardEdition e : FModel.getMagicDb().getEditions()) {
++                    if (!e.getDate().before(d))
++                        codes.add(e.getCode());
++                }
++                recentEditionCodes = codes;
++            }
++            return recentEditionCodes;
++        }
++
+         @Override
+         public boolean test(final PaperCard card) {
+             if (!this.rarities.isEmpty() && !this.rarities.contains(card.getRarity()))
+@@ -96,34 +112,8 @@ public class CardUtil {
+                 if (!found)
+                     return !this.shouldBeEqual;
+             }
+-            if (!this.minDate.isEmpty()) {
+-                boolean found = false;
+-                List<PaperCard> allPrintings = FModel.getMagicDb().getCommonCards().getAllCards(card);
+-                List<CardEdition> cardEditionList = new ArrayList<>();
+-
+-                Date d = parseDate(this.minDate);
+-
+-                for (CardEdition e : FModel.getMagicDb().getEditions()) {
+-                    if (e.getDate().before(d))
+-                        continue;
+-                    cardEditionList.add(e);
+-                }
+-
+-                for (PaperCard c : allPrintings) {
+-                    for (CardEdition e : cardEditionList) {
+-                        if (e.getCode().equals(c.getEdition())) {
+-                            found = true;
+-                            break;
+-                        }
+-                    }
+-                }
+-                if (!found)
+-                    return !this.shouldBeEqual;
+-            }
+             if (!this.manaCosts.isEmpty() && !this.manaCosts.contains(card.getRules().getManaCost().getCMC()))
+                 return !this.shouldBeEqual;
+-            if (this.text != null && !this.text.matcher(card.getRules().getOracleText()).find())
+-                return !this.shouldBeEqual;
+ 
+             if (this.matchAllColors) {
+                 if (!card.getRules().getColor().hasAllColors(this.colors)) {
+@@ -237,6 +227,23 @@ public class CardUtil {
+                     return !this.shouldBeEqual;
+             }
+ 
++            // The costly checks go last. Every check above fails the same way, so their order doesn't
++            // change the result, and most cards are ruled out before a regex or a printings scan.
++            if (this.text != null && !this.text.matcher(card.getRules().getOracleText()).find())
++                return !this.shouldBeEqual;
++            if (!this.minDate.isEmpty()) {
++                boolean found = false;
++                Set<String> recentEditions = editionsSinceMinDate();
++                for (PaperCard c : FModel.getMagicDb().getCommonCards().getAllCards(card)) {
++                    if (recentEditions.contains(c.getEdition())) {
++                        found = true;
++                        break;
++                    }
++                }
++                if (!found)
++                    return !this.shouldBeEqual;
++            }
++
+             return this.shouldBeEqual;
+         }
+ 
+diff --git a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
+index d0aec6b3..e2f8f8c6 100644
+--- a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
++++ b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
+@@ -748,31 +748,10 @@ public class RewardActor extends Actor implements Disposable, ImageFetcher.Callb
+             newH = boundH;
+             newW = (newH * origW) / origH;
+         }
+-        float AR = 480f / 270f;
+-        int x = Forge.getDeviceAdapter().getRealScreenSize(false).getLeft();
+-        int y = Forge.getDeviceAdapter().getRealScreenSize(false).getRight();
+-        int realX = Forge.getDeviceAdapter().getRealScreenSize(true).getLeft();
+-        int realY = Forge.getDeviceAdapter().getRealScreenSize(true).getRight();
+-        if (realX > x) {
+-            x *= 1.1f;
+-        } else if (realY > y) {
+-            y *= 1.1f;
+-        }
+-        float fW = Math.max(x, y);
+-        float fH = Math.min(x, y);
+-        float mul = fW / fH < AR ? AR / (fW / fH) : (fW / fH) / AR;
++        // The view extends to the screen's shape (Scene.getViewWidth/Height) instead of stretching a
++        // 16:9 layout, so the card needs no widening. Only the player's own size setting applies.
+         Float custom = Forge.isLandscapeMode() ? Config.instance().getSettingData().cardTooltipAdjLandscape : Config.instance().getSettingData().cardTooltipAdj;
+-        if (custom != null && custom != 1f) {
+-            mul *= custom;
+-        } else {
+-            if (fW / fH >= 2f) {//tall display
+-                mul = (fW / fH) - ((fW / fH) / AR);
+-                if ((fW / fH) >= 2.1f && (fW / fH) < 2.2f)
+-                    mul *= 0.9f;
+-                else if ((fW / fH) > 2.2f) //ultrawide 21:9 Galaxy Fold, Huawei X2, Xperia 1
+-                    mul *= 0.8f;
+-            }
+-        }
++        float mul = custom != null ? custom : 1f;
+         if (Forge.isLandscapeMode())
+             drawable.setMinSize(newW * mul, newH);
+         else
+@@ -1318,17 +1297,17 @@ public class RewardActor extends Actor implements Disposable, ImageFetcher.Callb
+     private void applyProjectionMatrix(Batch batch) {
+         projDirectionVec.set(0, 0, -1);
+         projUpVec.set(0, 1, 0);
+-        projPosVec.set(Scene.getIntendedWidth() / 2f, Scene.getIntendedHeight() / 2f, 0);
++        projPosVec.set(Scene.getViewWidth() / 2f, Scene.getViewHeight() / 2f, 0);
+ 
+         float fov = 67;
+-        float hy = Scene.getIntendedHeight() / 2f;
++        float hy = Scene.getViewHeight() / 2f;
+         float a = (float) ((hy) / Math.sin(MathUtils.degreesToRadians * (fov / 2f)));
+         float height = (float) Math.sqrt((a * a) - (hy * hy));
+         projPosVec.z = height * 1f;
+         float far = height * 2f;
+         float near = height * 0.8f;
+ 
+-        float aspect = (float) Scene.getIntendedWidth() / (float) Scene.getIntendedHeight();
++        float aspect = Scene.getViewWidth() / Scene.getViewHeight();
+ 
+         projectionMat.setToProjection(Math.abs(near), Math.abs(far), fov, aspect);
+         viewMat.setToLookAt(projPosVec, projPosVec.cpy().add(projDirectionVec), projUpVec);
+diff --git a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
+index 6be2bfd0..63033c73 100644
+--- a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
++++ b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
+@@ -2,9 +2,18 @@ package forge.adventure.util;
+ 
+ import com.badlogic.gdx.files.FileHandle;
+ import com.badlogic.gdx.graphics.Texture;
++import com.badlogic.gdx.graphics.g2d.TextureRegion;
+ import com.badlogic.gdx.maps.ImageResolver;
++import com.badlogic.gdx.maps.MapGroupLayer;
++import com.badlogic.gdx.maps.MapLayer;
++import com.badlogic.gdx.maps.MapLayers;
++import com.badlogic.gdx.maps.MapObject;
++import com.badlogic.gdx.maps.objects.TextureMapObject;
+ import com.badlogic.gdx.maps.MapObjects;
+ import com.badlogic.gdx.maps.tiled.TiledMap;
++import com.badlogic.gdx.maps.tiled.TiledMapTile;
++import com.badlogic.gdx.maps.tiled.TiledMapTileSet;
++import com.badlogic.gdx.maps.tiled.tiles.AnimatedTiledMapTile;
+ import com.badlogic.gdx.maps.tiled.TmxMapLoader;
+ import com.badlogic.gdx.utils.*;
+ import forge.Forge;
+@@ -38,9 +47,50 @@ public class TemplateTmxMapLoader extends TmxMapLoader {
+ 
+         TiledMap map = loadTiledMap(tmxFile, parameter, new ImageResolver.DirectImageResolver(Forge.getAssets().tmxMap()));
+         map.setOwnedResources(Forge.getAssets().tmxMap().values().toArray());
++        insetTileRegions(map);
+         return map;
+     }
+ 
++    /**
++     * Keeps each tile's texture coordinates a tenth of a texel inside the tile. At a screen scale
++     * where a tile edge falls on a pixel centre (16-unit tiles at 38.5 px: a 480-unit view on a
++     * 1155 px screen), which of the two tiles gets that pixel depends on the GPU snapping vertices
++     * to a sub-pixel grid (1/16 px on many GPUs), so the pixel can take its texture coordinate
++     * from just past the tile's edge. Nearest sampling then reads the neighbouring tile in the
++     * tileset image, which draws a one-pixel line across the map. A tenth of a texel covers that
++     * snapping at a pixel or more per texel, and moves nothing on screen by more than a fraction
++     * of a pixel. Tile objects (object layers) carry their own copies of the tiles' regions, so
++     * those are inset too.
++     */
++    private static void insetTileRegions(TiledMap map) {
++        java.util.Set<TextureRegion> done = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
++        for (TiledMapTileSet tileSet : map.getTileSets()) {
++            for (TiledMapTile tile : tileSet) {
++                if (tile instanceof AnimatedTiledMapTile) continue; // its frames are tiles of the set
++                inset(tile.getTextureRegion(), done);
++            }
++        }
++        insetObjects(map.getLayers(), done);
++    }
++
++    private static void insetObjects(MapLayers layers, java.util.Set<TextureRegion> done) {
++        for (MapLayer layer : layers) {
++            if (layer instanceof MapGroupLayer) insetObjects(((MapGroupLayer) layer).getLayers(), done);
++            for (MapObject object : layer.getObjects()) {
++                if (object instanceof TextureMapObject) inset(((TextureMapObject) object).getTextureRegion(), done);
++            }
++        }
++    }
++
++    private static void inset(TextureRegion region, java.util.Set<TextureRegion> done) {
++        if (region == null || region.getTexture() == null || !done.add(region)) return;
++        float du = 0.1f / region.getTexture().getWidth(), dv = 0.1f / region.getTexture().getHeight();
++        // Keeps flips: shrink toward the region's centre whichever way round u/u2, v/v2 are.
++        float u = region.getU(), u2 = region.getU2(), v = region.getV(), v2 = region.getV2();
++        float su = u <= u2 ? du : -du, sv = v <= v2 ? dv : -dv;
++        region.setRegion(u + su, v + sv, u2 - su, v2 - sv);
++    }
++
+     @Override
+     protected Array<FileHandle> getDependencyFileHandles(FileHandle tmxFile) {
+         //return super.getDependencyFileHandles(tmxFile);
+diff --git a/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java b/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java
+new file mode 100644
+index 00000000..9392cb69
+--- /dev/null
++++ b/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java
+@@ -0,0 +1,136 @@
++package forge.adventure.util;
++
++import com.badlogic.gdx.scenes.scene2d.Actor;
++import com.badlogic.gdx.scenes.scene2d.Group;
++import forge.adventure.scene.Scene;
++
++import java.util.Map;
++import java.util.WeakHashMap;
++
++/**
++ * Fits layouts made for the intended screen (Scene.getIntendedWidth/Height, 480x270 or 270x480)
++ * into the view (Scene.getViewWidth/Height), which is wider or taller on screens that aren't 16:9.
++ * Each element keeps its distance to the edge it is nearer to (elements straddling the middle
++ * stay centred), and elements that touch or overlap are placed as one group. Zero-size container
++ * groups are looked through. Elements spanning (nearly) the whole intended width or height, like
++ * backgrounds and bars, are stretched instead.
++ */
++public final class ViewLayout {
++    private static final Map<Actor, float[]> designBounds = new WeakHashMap<>();
++    private static final Map<Group, float[]> lastExtra = new WeakHashMap<>();
++
++    private ViewLayout() {
++    }
++
++    /** Positions root's children for the current view (their first-seen bounds are the design). */
++    public static void anchor(Group root) {
++        float iw = Scene.getIntendedWidth(), ih = Scene.getIntendedHeight();
++        float dx = Scene.getViewWidth() - iw, dy = Scene.getViewHeight() - ih;
++        java.util.List<Actor> list = new java.util.ArrayList<>();
++        collect(root, list);
++        Actor[] actors = list.toArray(new Actor[0]);
++        int n = actors.length;
++        // The extra room root was last laid out with: elements first seen now were placed for that
++        // layout (for example, bounds copied from an anchored element), so undo it to get their design.
++        float[] last = lastExtra.get(root);
++        float lastDx = last == null ? 0 : last[0], lastDy = last == null ? 0 : last[1];
++        float[][] design = new float[n][];
++        for (int i = 0; i < n; i++) {
++            float[] d = designBounds.get(actors[i]);
++            if (d == null) {
++                Actor a = actors[i];
++                d = new float[] {a.getX(), a.getY(), a.getWidth(), a.getHeight()};
++                if (lastDx != 0 || lastDy != 0) {
++                    if (d[2] >= iw + lastDx - 0.5f && lastDx != 0) d[2] -= lastDx;
++                    if (d[3] >= ih + lastDy - 0.5f && lastDy != 0) d[3] -= lastDy;
++                    if (d[2] < iw * 0.9f) d[0] -= shift(d[0], d[2], iw + lastDx, lastDx);
++                    if (d[3] < ih * 0.9f) d[1] -= shift(d[1], d[3], ih + lastDy, lastDy);
++                }
++                designBounds.put(a, d);
++            }
++            design[i] = d;
++        }
++        lastExtra.put(root, new float[] {dx, dy});
++        // Elements that touch or overlap (a toolbar's buttons, a panel and what is on it) move as
++        // one: anchor each such group by its combined bounds. Stretched elements don't group.
++        int[] group = new int[n];
++        for (int i = 0; i < n; i++) group[i] = i;
++        for (int i = 0; i < n; i++) {
++            if (spans(design[i], iw, ih)) continue;
++            for (int j = i + 1; j < n; j++) {
++                if (!spans(design[j], iw, ih) && touch(design[i], design[j])) union(group, i, j);
++            }
++        }
++        float[][] bounds = new float[n][];
++        for (int i = 0; i < n; i++) {
++            int g = find(group, i);
++            float[] d = design[i], b = bounds[g];
++            if (b == null) {
++                bounds[g] = new float[] {d[0], d[1], d[0] + d[2], d[1] + d[3]};
++            } else {
++                b[0] = Math.min(b[0], d[0]);
++                b[1] = Math.min(b[1], d[1]);
++                b[2] = Math.max(b[2], d[0] + d[2]);
++                b[3] = Math.max(b[3], d[1] + d[3]);
++            }
++        }
++        for (int i = 0; i < n; i++) {
++            float[] d = design[i], b = bounds[find(group, i)];
++            boolean spansX = d[2] >= iw * 0.9f, spansY = d[3] >= ih * 0.9f;
++            float x = spansX ? d[0] : d[0] + shift(b[0], b[2] - b[0], iw, dx);
++            float y = spansY ? d[1] : d[1] + shift(b[1], b[3] - b[1], ih, dy);
++            // Only the position, and the stretched dimension of spanning elements: sizes a scene
++            // sets later (labels, packed tables) stay as they are.
++            Actor a = actors[i];
++            a.setBounds(x, y, spansX ? d[2] + dx : a.getWidth(), spansY ? d[3] + dy : a.getHeight());
++        }
++    }
++
++    /**
++     * The elements to place: root's children, except that zero-size groups at the origin (pure
++     * containers, like GameHUD's map/avatar/menu groups) contribute their children instead.
++     */
++    private static void collect(Group root, java.util.List<Actor> out) {
++        for (Actor a : root.getChildren()) {
++            if (a instanceof Group && !(a instanceof com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup)
++                    && a.getWidth() == 0 && a.getHeight() == 0 && a.getX() == 0 && a.getY() == 0) {
++                collect((Group) a, out);
++            } else {
++                out.add(a);
++            }
++        }
++    }
++
++    private static boolean spans(float[] d, float iw, float ih) {
++        return d[2] >= iw * 0.9f || d[3] >= ih * 0.9f;
++    }
++
++    private static boolean touch(float[] a, float[] b) {
++        final float gap = 3;
++        return a[0] <= b[0] + b[2] + gap && b[0] <= a[0] + a[2] + gap
++                && a[1] <= b[1] + b[3] + gap && b[1] <= a[1] + a[3] + gap;
++    }
++
++    private static int find(int[] group, int i) {
++        while (group[i] != i) {
++            group[i] = group[group[i]];
++            i = group[i];
++        }
++        return i;
++    }
++
++    private static void union(int[] group, int a, int b) {
++        group[find(group, a)] = find(group, b);
++    }
++
++    /**
++     * How far an element at pos with this size moves when the design size grows by extra. An element
++     * that straddles the middle stays centred. Otherwise it moves with the nearer edge, so the parts
++     * of a corner panel move together.
++     */
++    public static float shift(float pos, float size, float design, float extra) {
++        float middle = design / 2;
++        if (pos < middle && pos + size > middle) return extra / 2;
++        return pos + size / 2 < middle ? 0 : extra;
++    }
++}
+diff --git a/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java b/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
+index 60be73ac..3c3039f5 100644
+--- a/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
++++ b/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
+@@ -20,6 +20,40 @@ public class BiomeStructure {
+     public ColorMap image;
+     private final static int MAXIMUM_WAVEFUNCTIONSIZE = 10;
+ 
++    /**
++     * Solves a structure's wave-function-collapse chunks. {@code chunks} holds {x, y, width, height}
++     * per chunk in generation order; the result has each chunk's image, or null where it failed
++     * (entries after the first failure are not used). Chunks are independent (each has its own
++     * seed), so a solver may work on them in parallel; the web build solves them in workers.
++     */
++    public interface ChunkSolver {
++        ColorMap[] solve(ColorMap source, int n, boolean periodicInput, boolean periodicOutput, int symmetry,
++                         int ground, long seed, int[] chunks);
++    }
++
++    public static ChunkSolver chunkSolver = BiomeStructure::solveChunks;
++
++    /** Solves chunks here, in order, stopping at the first failure. */
++    public static ColorMap[] solveChunks(ColorMap source, int n, boolean periodicInput, boolean periodicOutput,
++                                         int symmetry, int ground, long seed, int[] chunks) {
++        ColorMap[] result = new ColorMap[chunks.length / 4];
++        // The patterns and propagator depend only on the source image and settings, not on the
++        // chunk, and run() resets all per-run state, so one model per chunk size is reused.
++        // Building them per chunk was most of world generation's time.
++        HashMap<Long, OverlappingModel> models = new HashMap<>();
++        for (int c = 0; c < result.length; c++) {
++            int mx = chunks[c * 4], my = chunks[c * 4 + 1], w = chunks[c * 4 + 2], h = chunks[c * 4 + 3];
++            OverlappingModel model = models.computeIfAbsent(((long) w << 32) | h,
++                    k -> new OverlappingModel(source, n, w, h, periodicInput, periodicOutput, symmetry, ground));
++            boolean suc = false;
++            for (int i = 0; i < 10 && !suc; i++)
++                suc = model.run((int) seed + (i * 5355) + mx * my, 0);
++            if (!suc) break;
++            result[c] = model.graphics();
++        }
++        return result;
++    }
++
+     public BiomeStructure(BiomeStructureData data, long seed, int width, int height) {
+         this.data = data;
+         this.seed = seed;
+@@ -65,20 +99,28 @@ public class BiomeStructure {
+         for (int i = 0; i < data.mappingInfo.length; i++) {
+             colorIdMap.put(Integer.parseInt(data.mappingInfo[i].color, 16), i);
+         }
++        // Chunks in generation order, as {x, y, width, height}.
++        java.util.List<int[]> chunkList = new java.util.ArrayList<>();
+         for (int mx = 0; mx < targetWidth; mx += Math.min(targetWidth - mx, MAXIMUM_WAVEFUNCTIONSIZE)) {
+             for (int my = 0; my < targetWidth; my += Math.min(targetHeight - my, MAXIMUM_WAVEFUNCTIONSIZE)) {
+-                OverlappingModel model = new OverlappingModel(sourceImage, data.N, Math.min(targetWidth - mx, MAXIMUM_WAVEFUNCTIONSIZE), Math.min(targetHeight - my, MAXIMUM_WAVEFUNCTIONSIZE), data.periodicInput, data.periodicOutput, data.symmetry, data.ground);
++                chunkList.add(new int[] {mx, my, Math.min(targetWidth - mx, MAXIMUM_WAVEFUNCTIONSIZE), Math.min(targetHeight - my, MAXIMUM_WAVEFUNCTIONSIZE)});
++            }
++        }
++        int[] chunks = new int[chunkList.size() * 4];
++        for (int c = 0; c < chunkList.size(); c++) System.arraycopy(chunkList.get(c), 0, chunks, c * 4, 4);
++        ColorMap[] solved = chunkSolver.solve(sourceImage, data.N, data.periodicInput, data.periodicOutput, data.symmetry, data.ground, seed, chunks);
+ 
+-                boolean suc = false;
+-                for (int i = 0; i < 10 && !suc; i++)
+-                    suc = model.run((int) seed + (i * 5355) + mx * my, 0);
+-                if (!suc) {
++        int chunk = 0;
++        for (int mx = 0; mx < targetWidth; mx += Math.min(targetWidth - mx, MAXIMUM_WAVEFUNCTIONSIZE)) {
++            for (int my = 0; my < targetWidth; my += Math.min(targetHeight - my, MAXIMUM_WAVEFUNCTIONSIZE)) {
++                ColorMap result = solved[chunk++];
++                if (result == null) {
+                     for (int x = 0; x < dataMap.length; x++)
+                         for (int y = 0; y < dataMap[x].length; y++)
+                             dataMap[mx + x][my + y] = -1;
+                     return;
+                 }
+-                image = model.graphics();
++                image = result;
+                 for (int x = 0; x < image.getWidth(); x++) {
+ 
+                     for (int y = 0; y < image.getHeight(); y++) {
+diff --git a/forge-gui-mobile/src/forge/adventure/world/Model.java b/forge-gui-mobile/src/forge/adventure/world/Model.java
+index 27c7f542..91f27d3d 100644
+--- a/forge-gui-mobile/src/forge/adventure/world/Model.java
++++ b/forge-gui-mobile/src/forge/adventure/world/Model.java
+@@ -9,7 +9,12 @@ import java.util.Random;
+ abstract class Model {
+   protected boolean[][] wave;
+   protected int[][][] propagator;
+-  int[][][] compatible;
++  // compatible[(i * T + t) * 4 + d]: one flat array instead of an int[4] per (cell, pattern),
++  // which propagate() walks far faster (no pointer chasing); compatibleStart is one cell's
++  // initial values, copied in by Clear().
++  int[] compatible;
++  private int[] compatibleStart;
++  private double[] weightValues; // weights unboxed, for ban()/observe()
+   protected int[] observed;
+ 
+   int[] stack;
+@@ -66,12 +71,16 @@ abstract class Model {
+ 
+   void init() {
+     this.wave = new boolean[this.FMX * this.FMY][];
+-    this.compatible = new int[this.wave.length][][];
+     for (int i = 0; i < wave.length; i++) {
+       this.wave[i] = new boolean[this.T];
+-      this.compatible[i] = new int[this.T][];
+-      for (int t = 0; t < this.T; t++) this.compatible[i][t] = new int[4];
+     }
++    this.compatible = new int[this.wave.length * this.T * 4];
++    this.compatibleStart = new int[this.T * 4];
++    for (int t = 0; t < this.T; t++) {
++      for (int d = 0; d < 4; d++) this.compatibleStart[t * 4 + d] = this.propagator[Model.oppposite[d]][t].length;
++    }
++    this.weightValues = new double[this.T];
++    for (int t = 0; t < this.T; t++) this.weightValues[t] = this.weights[t];
+ 
+     this.weightLogWeights = new double[this.T];
+     this.distribution = new double[this.T];
+@@ -132,7 +141,7 @@ abstract class Model {
+     }
+ 
+     for (int t = 0; t < this.T; t++) distribution[t] =
+-            this.wave[argmin][t] ? this.weights[t] : 0;
++            this.wave[argmin][t] ? this.weightValues[t] : 0;
+ 
+     int r = Model.randomIndice(distribution, this.random.nextDouble());
+ 
+@@ -146,14 +155,14 @@ abstract class Model {
+   protected void ban(int i, int t) {
+     this.wave[i][t] = false;
+ 
+-    int[] comp = this.compatible[i][t];
+-    for (int d = 0; d < 4; d++) comp[d] = 0;
++    int base = (i * this.T + t) * 4;
++    for (int d = 0; d < 4; d++) this.compatible[base + d] = 0;
+     this.stack[this.stacksize]=i;
+     this.stack[this.stacksize+1]=t;
+     this.stacksize+=2;
+ 
+     this.sumsOfOnes[i] -= 1;
+-    this.sumsOfWeights[i] -= this.weights[t];
++    this.sumsOfWeights[i] -= this.weightValues[t];
+     this.sumsOfWeightLogWeights[i] -= this.weightLogWeights[t];
+ 
+     double sum = this.sumsOfWeights[i];
+@@ -179,14 +188,12 @@ abstract class Model {
+ 
+         int i2 = x2 + y2 * this.FMX;
+         int[] p = this.propagator[d][stack2];
+-        int[][] compat = this.compatible[i2];
++        int[] compat = this.compatible;
++        int cellBase = i2 * this.T * 4 + d;
+ 
+         for (int t2 : p) {
+-          int[] comp = compat[t2];
+-
+-          comp[d]--;
+-
+-          if (comp[d] == 0) this.ban(i2, t2);
++          int k = cellBase + t2 * 4;
++          if (--compat[k] == 0) this.ban(i2, t2);
+         }
+       }
+     }
+@@ -210,11 +217,8 @@ abstract class Model {
+ 
+   protected void Clear() {
+     for (int i = 0; i < this.wave.length; i++) {
+-      for (int t = 0; t < this.T; t++) {
+-        this.wave[i][t] = true;
+-        for (int d = 0; d < 4; d++) this.compatible[i][t][d] =
+-                this.propagator[Model.oppposite[d]][t].length;
+-      }
++      java.util.Arrays.fill(this.wave[i], true);
++      System.arraycopy(this.compatibleStart, 0, this.compatible, i * this.T * 4, this.T * 4);
+ 
+       this.sumsOfOnes[i] = this.weights.length;
+       this.sumsOfWeights[i] = this.sumOfWeights;
+diff --git a/forge-gui-mobile/src/forge/adventure/world/World.java b/forge-gui-mobile/src/forge/adventure/world/World.java
+index 47066dec..1a1a3e34 100644
+--- a/forge-gui-mobile/src/forge/adventure/world/World.java
++++ b/forge-gui-mobile/src/forge/adventure/world/World.java
+@@ -46,6 +46,8 @@ public class World implements Disposable, SaveFileContent {
+     private PointOfInterestMap mapPoiIds;
+     private BiomeTexture[] biomeTexture;
+     private long seed;
++    /** save()'s encoding of biomeImage, biomeMap and terrainMap; reset when they are replaced. */
++    private SaveFileData encodedTerrain;
+     private final Random random = new Random();
+     private boolean worldDataLoaded = false;
+     private Texture globalTexture = null;
+@@ -100,6 +102,7 @@ public class World implements Disposable, SaveFileContent {
+ 
+     @Override
+     public void load(SaveFileData saveFileData) {
++        encodedTerrain = null;
+ 
+         if (biomeImage != null) {
+             biomeImage.dispose();
+@@ -111,6 +114,13 @@ public class World implements Disposable, SaveFileContent {
+         biomeImage = saveFileData.readPixmap("biomeImage");
+         biomeMap = (long[][]) saveFileData.readObject("biomeMap");
+         terrainMap = (int[][]) saveFileData.readObject("terrainMap");
++        encodedTerrain = null;
++        if (saveFileData.containsKey("biomeImage") && saveFileData.containsKey("biomeMap") && saveFileData.containsKey("terrainMap")) {
++            encodedTerrain = new SaveFileData();
++            for (String key : new String[] {"biomeImage", "biomeMap", "terrainMap"}) {
++                encodedTerrain.put(key, saveFileData.get(key));
++            }
++        }
+ 
+ 
+         width = saveFileData.readInt("width");
+@@ -127,9 +137,10 @@ public class World implements Disposable, SaveFileContent {
+ 
+         SaveFileData data = new SaveFileData();
+ 
+-        data.store("biomeImage", biomeImage);
+-        data.storeObject("biomeMap", biomeMap);
+-        data.storeObject("terrainMap", terrainMap);
++        // The biome image and maps don't change after generateNew/load, but encoding them (a PNG
++        // and two width x height arrays) was most of every save's time, and the game autosaves
++        // before each duel and each town or dungeon. Encode them once per world.
++        data.putAll(encodedTerrain());
+         data.store("width", width);
+         data.store("height", height);
+         data.store("mapObjectIds", mapObjectIds.save());
+@@ -139,6 +150,25 @@ public class World implements Disposable, SaveFileContent {
+     }
+ 
+ 
++    /**
++     * The saved form of biomeImage, biomeMap and terrainMap. Encoded once, at the end of
++     * generateNew (while the player waits for the world anyway); a loaded world keeps the bytes it
++     * was read from.
++     */
++    private SaveFileData encodedTerrain() {
++        if (encodedTerrain == null) {
++            SaveFileData terrain = new SaveFileData();
++            terrain.store("biomeImage", biomeImage);
++            terrain.storeObject("biomeMap", biomeMap);
++            terrain.storeObject("terrainMap", terrainMap);
++            // SaveFileData records a failed encoding under "IOException" rather than throwing, so
++            // don't keep a failure, and try again on the next save.
++            if (terrain.containsKey("IOException")) return terrain;
++            encodedTerrain = terrain;
++        }
++        return encodedTerrain;
++    }
++
+     public BiomeSpriteData getObject(int id) {
+         return mapObjectIds.get(id);
+     }
+@@ -295,6 +325,7 @@ public class World implements Disposable, SaveFileContent {
+ 
+     public boolean generateNew(long seed) {
+         try {
++            encodedTerrain = null;
+             if (GuiBase.isMobile())
+                 GuiBase.getInterface().preventSystemSleep(true);
+             final long[] currentTime = {System.currentTimeMillis()};
+@@ -807,7 +838,9 @@ public class World implements Disposable, SaveFileContent {
+             }
+             mapMarkerPixmap.dispose();
+             biomeImage = pix;
+-            measureGenerationTime("sprites", currentTime[0]);
++            currentTime[0] = measureGenerationTime("sprites", currentTime[0]);
++            encodedTerrain(); // for saves (see there)
++            measureGenerationTime("save data", currentTime[0]);
+             System.out.println("Generating world took :\t\t" + ((System.currentTimeMillis() - startTime) / 1000f) + " s");
+             WorldStage.getInstance().clearCache();
+ 
+diff --git a/forge-gui-mobile/src/forge/assets/FSkinFont.java b/forge-gui-mobile/src/forge/assets/FSkinFont.java
+index 7bbecf2a..eca1de0c 100644
+--- a/forge-gui-mobile/src/forge/assets/FSkinFont.java
++++ b/forge-gui-mobile/src/forge/assets/FSkinFont.java
+@@ -430,6 +430,20 @@ public class FSkinFont {
+                     if (Forge.isDisposed || Forge.getAssets() == null || Forge.getAssets().manager() == null) {
+                         return;
+                     }
++                    if (Boolean.getBoolean("forge.web")) {
++                        // A browser keeps no font cache between visits (cache/ lives in memory), so
++                        // writing the atlas out as PNG and loading it back only doubled the image
++                        // work, for every size at startup. Use the generated font as it is.
++                        Array<TextureRegion> regions = new Array<>();
++                        for (PixmapPacker.Page p : pages) {
++                            Texture texture = new Texture(new PixmapTextureData(p.getPixmap(), p.getPixmap().getFormat(), false, false));
++                            texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
++                            regions.add(new TextureRegion(texture));
++                        }
++                        font = new BitmapFont(fontData, regions, true);
++                        Forge.safeDispose(generator, packer); // the uploaded textures hold the glyphs now
++                        return;
++                    }
+ 
+                     Array<TextureRegion> textureRegions = new Array<>();
+                     for (int i = 0; i < pages.size; i++) {
+diff --git a/forge-gui-mobile/src/forge/screens/TransitionScreen.java b/forge-gui-mobile/src/forge/screens/TransitionScreen.java
+index 8757ba80..18cbb889 100644
+--- a/forge-gui-mobile/src/forge/screens/TransitionScreen.java
++++ b/forge-gui-mobile/src/forge/screens/TransitionScreen.java
+@@ -181,6 +181,19 @@ public class TransitionScreen extends FContainer {
+                     enemyAvatar.flip(true, false);
+                 float fontScale = GuiBase.isAndroid() ? 12f : 10f;
+                 BitmapFont font = Controls.getBitmapFont("default", fontScale / (screenW / screenH));
++                // That size depends only on the screen's shape, not its size in pixels, so on a small
++                // screen (a browser window) the names ran off the screen. Shrink it, only as far as
++                // needed, so both names fit across and, in portrait, in the strip at the bottom.
++                float maxNameWidth = (Forge.isLandscapeMode() ? screenW / 2f : screenH) * 0.9f;
++                float maxNameHeight = Forge.isLandscapeMode() ? Float.MAX_VALUE : scale / 4f;
++                float shrink = Math.min(1f, maxNameHeight / font.getLineHeight());
++                for (String name : new String[] {playerAvatarName, enemyAvatarName}) {
++                    if (name == null) continue;
++                    layout.setText(font, name);
++                    if (layout.width > maxNameWidth) shrink = Math.min(shrink, maxNameWidth / layout.width);
++                }
++                if (shrink < 1f)
++                    font = Controls.getBitmapFont("default", fontScale / (screenW / screenH) * shrink);
+                 if (textureRegion != null) {
+                     float value = 1 - percentage;
+                     if (eventDuel)
+diff --git a/forge-gui-mobile/src/forge/util/ScreenUtil.java b/forge-gui-mobile/src/forge/util/ScreenUtil.java
+index 335a9331..bdb15ad3 100644
+--- a/forge-gui-mobile/src/forge/util/ScreenUtil.java
++++ b/forge-gui-mobile/src/forge/util/ScreenUtil.java
+@@ -43,7 +43,26 @@ public class ScreenUtil implements Disposable {
+         isInitialized = true;
+     }
+ 
++    /**
++     * Follows the screen size. Taking it only once, at first use, made screenshots and save
++     * thumbnails read the old size after a window resize (in a browser or a desktop window).
++     */
++    private void ensureSize() {
++        int w = Forge.getScreenWidth(), h = Forge.getScreenHeight();
++        if (w == width && h == height || w <= 0 || h <= 0) return;
++        width = w;
++        height = h;
++        bufferSize = width * height * 4;
++        pixels = BufferUtils.newByteBuffer(bufferSize);
++        if (isInitialized) {
++            Forge.safeDispose(screenshotTexture);
++            isInitialized = false;
++            initScreenshotBuffer();
++        }
++    }
++
+     public TextureRegion takeScreenshot() {
++        ensureSize();
+         if (!isInitialized) {
+             initScreenshotBuffer();
+         }
+@@ -71,6 +90,7 @@ public class ScreenUtil implements Disposable {
+     }
+ 
+     public Pixmap getThumbnailPreview() {
++        ensureSize();
+         Pixmap pixmap = new Pixmap(THUMB_WIDTH, THUMB_HEIGHT, Pixmap.Format.RGBA8888);
+         pixels.clear();
+         // Read full framebuffer into a ByteBuffer
+diff --git a/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java b/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
+index 16b0e6db..3aff475d 100644
+--- a/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
++++ b/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
+@@ -38,6 +38,9 @@ public final class CardArchetypeLDAGenerator {
+ 
+     public static boolean initializeFormat(String format){
+         List<Archetype> lda = CardThemedLDAIO.loadRawLDA(format);
++        if (lda == null) {
++            return false;
++        }
+         Map<String,List<List<Pair<String, Double>>>> formatMap = CardThemedLDAIO.loadLDA(format);
+         if(formatMap==null) {
+             try {
+diff --git a/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java b/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
+index 1b047f4f..d5103f75 100644
+--- a/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
++++ b/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
+@@ -87,7 +87,7 @@ public final class CdnUuidCache {
+             new ConcurrentHashMap<>();
+ 
+     /** Set codes a lookup couldn't answer locally, waiting for {@link #syncPendingSets}. */
+-    private static final Set<String> pendingSyncs = ConcurrentHashMap.newKeySet();
++    private static final Set<String> pendingSyncs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+ 
+     /** Submits {@link #syncPendingSets} to the shared pool; tests disable this. */
+     static volatile boolean autoSyncEnabled = true;

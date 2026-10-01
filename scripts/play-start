@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Start a headless game session that plays to the tutorial map (new character, world generated,
+# intro dialogs closed, all driven through the game's test harness, forgeweb.test.WebTest), then
+# keeps running for scripts/play commands. Log: out/play.log, session output: out/play.txt. The
+# world is generated from SEED (default 1), so sessions repeat. Stop it with scripts/play quit.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+mkdir -p "$ROOT/out"
+rm -f "$ROOT/out/cmd.txt"
+nohup "$ROOT/scripts/webtest" --width "${WIDTH:-1280}" --height "${HEIGHT:-720}" --url "http://host.docker.internal:8090/index.html?test=1&seed=${SEED:-1}" --wait 5 --heartbeat 60 --max-time "${PLAY_MAX_TIME:-7200}" \
+  --log out/play.log --interactive out/cmd.txt \
+  --steps "until 'ui/minimap_player.png' 300; wait 3; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; wait 6; api dismiss; api click Where am I; api dismiss; shot out/play_start.png" \
+  > "$ROOT/out/play.txt" 2>&1 &
+for _ in $(seq 1 180); do
+  grep -q 'interactive:' "$ROOT/out/play.txt" 2>/dev/null && { echo "session ready (out/play_start.png)"; exit 0; }
+  grep -q 'Traceback\|Error:\|NOT FOUND\|tab crashed\|watchdog' "$ROOT/out/play.txt" 2>/dev/null && { grep -v '\[hb\]' "$ROOT/out/play.txt" | tail -5; exit 1; }
+  sleep 5
+done
+echo "session did not get ready in 15 minutes"; exit 1

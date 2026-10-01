@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Send steps to a running `webtest --interactive out/cmd.txt` session and wait until they have run.
+# Usage: scripts/play 'hold ArrowRight 0.5; shot out/a.png'   (see web/tools/webtest.py for steps)
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="${PLAY_OUT:-$ROOT/out/play.txt}"
+before=$(grep -c '^ok$' "$OUT" || true)
+echo "$*" >> "$ROOT/out/cmd.txt"
+for _ in $(seq 1 600); do
+  now=$(grep -c '^ok$' "$OUT" || true)
+  [ "$now" -gt "$before" ] && break
+  sleep 0.5
+done
+awk -v n="$before" '/^> /{c++} c>n' "$OUT" | grep -v '\[hb\]'

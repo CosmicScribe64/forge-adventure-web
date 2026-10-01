@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Records which game files (res/) a new game reads from page load to the world map, into
+# web/startup-files.txt. scripts/build-webdata packs them into one download (packs/startup.pack)
+# instead of about 150 blocking requests. Needs the build and the server (scripts/serve-web). Rerun
+# after Forge updates or startup changes, then scripts/build-webdata.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/out/record-startup.txt"
+mkdir -p "$ROOT/out"
+"$ROOT/scripts/webtest" --url "http://host.docker.internal:8090/index.html?test=1&seed=1" --max-time 600 \
+  --log out/record-startup.log \
+  --steps "until 'ui/minimap_player.png' 300; wait 3; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; wait 8; js JSON.stringify(window.forgeFetched || [])" \
+  > "$OUT" 2>&1 || { tail -5 "$OUT"; exit 1; }
+python3 - "$OUT" "$ROOT/web/startup-files.txt" "$ROOT/scripts/build-webdata" <<'PY'
+import importlib.machinery, json, sys
+# Files already in their own download (folder packs, the card zip) are left out.
+webdata = importlib.machinery.SourceFileLoader("webdata", sys.argv[3]).load_module()
+skip = tuple(d + "/" for d in webdata.PACK_DIRS + ("cardsfolder",))
+line = next(l for l in open(sys.argv[1]) if l.startswith("js: "))
+paths = json.loads(line[4:])
+res = sorted({p[len("/forge/res/"):] for p in paths if p.startswith("/forge/res/")} )
+res = [p for p in res if not p.startswith(skip)]
+with open(sys.argv[2], "w") as f:
+    f.write("# Game files a new game reads from page load to the world map (scripts/record-startup).\n")
+    f.write("# scripts/build-webdata packs these into packs/startup.pack.\n")
+    f.write("\n".join(res) + "\n")
+print(f"{len(res)} files -> web/startup-files.txt")
+PY

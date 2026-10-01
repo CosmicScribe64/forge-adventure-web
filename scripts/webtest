@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Drive the web build (served by scripts/serve-web) in headless Chromium. See web/tools/webtest.py.
+# PW_DEBUG=pw:browser also prints Chromium's own stderr (crash reasons, OOM).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+IMAGE=mcr.microsoft.com/playwright/python:v1.55.0-noble
+exec docker run --rm --ipc=host --add-host host.docker.internal:host-gateway \
+  -v "$ROOT":/work -w /work \
+  -v shandalar-pip:/root/.cache/pip \
+  -e DEBUG="${PW_DEBUG:-}" \
+  "$IMAGE" bash -c 'pip install -q playwright==1.55.0 2>/dev/null; python /work/web/tools/webtest.py "$@"' _ "$@"

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Build Forge's Adventure-related modules in Docker and copy them, plus all
+# runtime dependencies, into web/libs for the TeaVM build.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+"$ROOT/scripts/dock" '
+  set -e
+  cd forge
+  mvn -B -q -T 4 -DskipTests -Dcheckstyle.skip -pl forge-gui-mobile -am \
+      package dependency:copy-dependencies \
+      -DincludeScope=runtime -DexcludeGroupIds=forge -DoutputDirectory=/work/web/libs
+  for m in forge-core forge-game forge-ai forge-gui forge-gui-mobile; do
+    cp $m/target/$m-*SNAPSHOT.jar /work/web/libs/
+  done
+  ls /work/web/libs | wc -l
+'

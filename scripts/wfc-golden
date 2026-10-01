@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Checks that our changes to Forge's world generation (forge/.../adventure/world: Model,
+# OverlappingModel, BiomeStructure) generate exactly what upstream Forge does. Compiles upstream
+# (forge HEAD) and patched sources on the JVM and compares hashes of:
+#   Golden            every structure model, N=2 and N=3, two chunk sizes, 25 seeds each
+#   GoldenStructures  BiomeStructure.initialize for every Shandalar structure, three seeds
+# Needs web/libs (scripts/build-forge-libs). Output: out/wfc-golden/result.txt
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+D="$ROOT/out/wfc-golden"
+rm -rf "$D" && mkdir -p "$D/old/forge/adventure/world" "$D/new/forge/adventure/world"
+for f in Model OverlappingModel ColorMap BiomeStructure; do
+  git -C "$ROOT/forge" show "HEAD:forge-gui-mobile/src/forge/adventure/world/$f.java" > "$D/old/forge/adventure/world/$f.java"
+  cp "$ROOT/forge/forge-gui-mobile/src/forge/adventure/world/$f.java" "$D/new/forge/adventure/world/"
+done
+"$ROOT/scripts/dock" '
+  cd /work/out/wfc-golden
+  CP=$(ls /work/web/libs/*.jar | tr "\n" ":")
+  MODELS=$(ls /work/forge/forge-gui/res/adventure/common/world/structures/models/*.png | tr "\n" " ")
+  python3 /work/web/tools/wfc-golden/structures.py /work/forge/forge-gui/res > structures.tsv
+  for v in old new; do
+    mkdir -p out-$v
+    javac -nowarn -d out-$v -cp "$CP" $v/forge/adventure/world/*.java \
+      /work/web/tools/wfc-golden/Golden.java /work/web/tools/wfc-golden/GoldenStructures.java 2>&1 \
+      | grep -v "warning\|^Note" || true
+    echo "$v models: $(java -cp out-$v:$CP Golden $MODELS)"
+    echo "$v structures: $(java -cp out-$v:$CP GoldenStructures structures.tsv)"
+  done' | tee "$D/result.txt"
+for kind in models structures; do
+  n=$(grep " $kind: " "$D/result.txt" | grep -o 'hash [0-9a-f]*' | sort -u | wc -l)
+  [ "$n" -eq 1 ] || { echo "OUTPUT DIFFERS ($kind)"; exit 1; }
+done
+echo "identical"

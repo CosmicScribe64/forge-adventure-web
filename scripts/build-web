@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Compile the web app (web/build/dist/js/webapp) in Docker. Log: web/build/teavm.log
+# Env: TEAVM_MEMORY_MB, TEAVM_OPT (NONE|SIMPLE|BALANCED|AGGRESSIVE), TEAVM_FAST_ANALYSIS=true
+#      REACH=1 also writes out/reach-game.txt (code size per package) and out/reach-game-reflect.txt
+#      (reflective call sites); REACH_DETAIL=1 adds what pulls each package in. Slow: 10-40 min.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+mkdir -p "$ROOT/web/build"
+REACH_PATH=""; [ "${REACH:-}" = 1 ] && REACH_PATH=/work/out/reach-game.txt
+DOCK_CWD=web DOCK_ENV="TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED} -e TEAVM_FAST_ANALYSIS=${TEAVM_FAST_ANALYSIS:-false} -e REACH_REPORT=$REACH_PATH -e REACH_DETAIL=${REACH_DETAIL:-0}" "$ROOT/scripts/dock" 'export GRADLE_OPTS="-Xmx640m -Dorg.gradle.daemon=false"; export TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120}; gradle --console=plain gdx_teavm_web_js_build 2>&1; echo "build peak memory: $(( $(cat /sys/fs/cgroup/memory.peak) / 1048576 )) MB"' > "$ROOT/web/build/teavm.log" || true
+# Our page (loading screen, prefetching) replaces gdx-teavm's generated one.
+if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
+  cp "$ROOT/web/html/index.html" "$ROOT/web/build/dist/js/webapp/index.html"
+  # World generation's worker (forgeweb.worker.WfcWorker).
+  "$ROOT/scripts/build-worker" && cp "$ROOT/web/build/dist/wfc-worker.js" "$ROOT/web/build/dist/js/webapp/"
+  # Content hashes in the URLs mean a browser never runs a stale cached app.js after a rebuild,
+  # and can keep an unchanged one.
+  WEBAPP="$ROOT/web/build/dist/js/webapp"
+  APP_V=$(shasum "$WEBAPP/app.js" | cut -c1-12)
+  WORKER_V=$(shasum "$WEBAPP/wfc-worker.js" 2>/dev/null | cut -c1-12)
+  # Not sed -i: its argument syntax differs between macOS and GNU sed.
+  sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
+  mv "$WEBAPP/index.html.tmp" "$WEBAPP/index.html"
+fi
+grep -E "BUILD (SUCCESSFUL|FAILED)|build peak memory" "$ROOT/web/build/teavm.log" || tail -20 "$ROOT/web/build/teavm.log"
+echo "missing APIs: $(grep -cE 'was not found|missing in the classpath' "$ROOT/web/build/teavm.log")"
+grep -E " error: |has no implementation" "$ROOT/web/build/teavm.log" | head -20 || true
+# Fail (non-zero exit) when the build failed, so `scripts/build-web && ...` stops.
+grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"

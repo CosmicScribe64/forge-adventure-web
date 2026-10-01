@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Replaces gdx-teavm's generated index.html (scripts/build-web copies it in). -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Forge</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+        body { display: flex; justify-content: center; align-items: center; }
+        /* The game fills the window and follows its size (WebLauncher: gdx-teavm auto size). */
+        #canvas { border: none; display: block; touch-action: none; width: 100vw; height: 100vh; }
+        /* Top centre, and hidden unless asked for, because every corner has game buttons (End
+           Turn, Mulligan, the HUD's avatar, the Stack tab). While hidden, it lets clicks through. */
+        #fullscreen {
+            position: fixed; left: 50%; top: 4px; transform: translateX(-50%); z-index: 5;
+            display: none; width: 34px; height: 28px; border: 1px solid #3a4a5c; border-radius: 6px;
+            background: rgba(11, 15, 20, .7); color: #d8e2ee; font-size: 17px; cursor: pointer;
+            opacity: 0; pointer-events: none; transition: opacity .25s;
+        }
+        #fullscreen.shown { opacity: .85; pointer-events: auto; }
+        #fullscreen.shown:hover { opacity: 1; }
+        body { touch-action: none; overscroll-behavior: none; }
+        #loading {
+            position: fixed; inset: 0; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; gap: 18px;
+            background: #0b0f14; color: #d8e2ee; font: 16px/1.4 system-ui, sans-serif;
+            transition: opacity .4s;
+        }
+        #loading h1 { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: .04em; color: #4fd8ff; }
+        #bar { width: min(420px, 80vw); height: 8px; border-radius: 4px; background: #1f2a36; overflow: hidden; }
+        #fill { height: 100%; width: 0; background: #4fd8ff; transition: width .2s; }
+        #status { min-height: 1.4em; font-size: 14px; color: #93a4b8; }
+        /* Progress of long in-game work (world generation): forgeProgress(label, fraction). */
+        #task {
+            position: fixed; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 6;
+            display: none; flex-direction: column; align-items: center; gap: 8px;
+            padding: 12px 18px; border-radius: 8px; background: rgba(11, 15, 20, .82);
+            color: #d8e2ee; font: 14px/1.4 system-ui, sans-serif;
+        }
+        #task .bar { width: min(320px, 70vw); height: 6px; border-radius: 3px; background: #1f2a36; overflow: hidden; }
+        #task .fill { height: 100%; width: 0; background: #4fd8ff; transition: width .2s; }
+    </style>
+</head>
+<body oncontextmenu="return false">
+<div><canvas id="canvas"></canvas></div>
+<button id="fullscreen" title="Full screen" aria-label="Full screen">⛶</button>
+<div id="task"><div class="label"></div><div class="bar"><div class="fill"></div></div></div>
+<div id="loading">
+    <h1>Forge</h1>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="status">Loading…</div>
+</div>
+<script>
+(() => {
+    const fill = document.getElementById("fill");
+    const status = document.getElementById("status");
+    const loading = document.getElementById("loading");
+
+    // Time to gameplay: the time each startup stage began (performance.now(), ms since navigation).
+    // Stages come from here and from Java (Forge's splash labels, forgeweb.compat.Progress), and
+    // forgeTimingReport prints them to the console as "[ttg]" lines.
+    const marks = window.forgeTiming = [];
+    window.forgeMark = name => {
+        if (name && !marks.some(m => m.name === name)) marks.push({ name, t: performance.now() });
+    };
+    window.forgeTimingReport = until => {
+        window.forgeMark(until);
+        const end = marks.find(m => m.name === until).t;
+        const phases = marks.filter(m => m.t <= end).map((m, i, a) =>
+            m.name.replace(/\s+/g, " ") + " " + (((i + 1 < a.length ? a[i + 1].t : end) - m.t) / 1000).toFixed(1) + "s");
+        console.log("[ttg] " + until + " at " + (end / 1000).toFixed(1) + "s: " + phases.slice(0, -1).join(" | "));
+    };
+    window.forgeMark("page");
+
+    // The bar: downloads fill the first DOWNLOAD_SHARE, and Forge's own startup (card database,
+    // skin and so on) fills the rest, as reported from Java through forgeProgress
+    // (forgeweb.compat.Progress).
+    const DOWNLOAD_SHARE = 0.4;
+    const done = {}, total = {};
+    function progress() {
+        let d = 0, t = 0;
+        for (const k in total) { d += done[k] || 0; t += total[k]; }
+        if (t > 0) fill.style.width = (100 * DOWNLOAD_SHARE * Math.min(1, d / t)).toFixed(1) + "%";
+        status.textContent = "Downloading game data… " + (d / 1048576).toFixed(0) + " / " + (t / 1048576).toFixed(0) + " MB";
+    }
+
+    // Game data (forge-data/) is stored gzipped as <name>.gz (scripts/build-webdata) and
+    // un-gzipped here, natively, as it arrives. The bar counts the bytes on the wire. If a server
+    // sends .gz files with Content-Encoding: gzip, the browser has already un-gzipped them, so check
+    // the first bytes (gzip starts with 1f 8b, and none of these files does otherwise).
+    async function download(url) {
+        const stored = url.startsWith("forge-data/");
+        const response = await fetch(stored ? url + ".gz" : url);
+        if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
+        total[url] = Number(response.headers.get("Content-Length")) || 0;
+        let wire = 0;
+        let body = response.body.pipeThrough(new TransformStream({
+            transform(chunk, controller) {
+                wire += chunk.length;
+                done[url] = wire;
+                progress();
+                controller.enqueue(chunk);
+            }
+        }));
+        if (stored) {
+            const [peek, rest] = body.tee();
+            const peekReader = peek.getReader();
+            const first = (await peekReader.read()).value;
+            peekReader.cancel().catch(() => {}); // only this branch: the other still reads it all
+            body = first && first.length >= 2 && first[0] === 0x1f && first[1] === 0x8b
+                ? rest.pipeThrough(new DecompressionStream("gzip")) : rest;
+        }
+        const reader = body.getReader();
+        const chunks = [];
+        let size = 0;
+        for (;;) {
+            const { done: end, value } = await reader.read();
+            if (end) break;
+            chunks.push(value);
+            size += value.length;
+        }
+        const bytes = new Uint8Array(size);
+        let pos = 0;
+        for (const c of chunks) { bytes.set(c, pos); pos += c.length; }
+        return bytes;
+    }
+
+    // Files Forge reads at startup, fetched in parallel with app.js. Java takes them from here
+    // (forgeweb.fs.Http) instead of making blocking requests that freeze the page.
+    window.forgePrefetch = {};
+    async function prefetch() {
+        const manifestUrl = "forge-data/manifest.txt";
+        const manifest = await download(manifestUrl);
+        window.forgePrefetch[manifestUrl] = manifest;
+        const urls = new Set();
+        for (const line of new TextDecoder().decode(manifest).split("\n")) {
+            const cols = line.split("\t");
+            if (cols.length > 2 && cols[2].startsWith("forge-data/")) urls.add(cols[2].trim());
+        }
+        await Promise.all([...urls].map(async url => { window.forgePrefetch[url] = await download(url); }));
+    }
+
+    // Saved games and preferences (forgeweb.fs.UserDataStore). Files under /forge/data/ are kept
+    // in IndexedDB, read here before the game starts, and written back whenever the game saves.
+    // Without IndexedDB (in some private windows) the game still runs, but forgets them on reload.
+    const userDb = new Promise(resolve => {
+        try {
+            const req = indexedDB.open("forge-user-data", 1);
+            req.onupgradeneeded = () => req.result.createObjectStore("files");
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => { console.warn("IndexedDB unavailable:", req.error); resolve(null); };
+        } catch (e) {
+            console.warn("IndexedDB unavailable:", e);
+            resolve(null);
+        }
+    });
+    function userTx(fn) {
+        userDb.then(db => {
+            if (!db) return;
+            const tx = db.transaction("files", "readwrite");
+            fn(tx.objectStore("files"));
+            tx.onerror = () => console.warn("saving user data failed:", tx.error);
+        });
+    }
+    window.forgeUserStore = {
+        put: (path, bytes) => userTx(store => store.put(new Uint8Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length)), path)),
+        remove: path => userTx(store => store.delete(path)),
+        removePrefix: prefix => userTx(store => store.delete(IDBKeyRange.bound(prefix, prefix + "\uffff"))),
+    };
+    async function loadUserFiles() {
+        const db = await userDb;
+        window.forgeUserFiles = {};
+        if (!db) return;
+        await new Promise(resolve => {
+            const store = db.transaction("files").objectStore("files");
+            const req = store.openCursor();
+            req.onsuccess = () => {
+                const cursor = req.result;
+                if (!cursor) return resolve();
+                window.forgeUserFiles[cursor.key] = cursor.value;
+                cursor.continue();
+            };
+            req.onerror = () => resolve();
+        });
+    }
+
+    async function loadApp() {
+        const code = await download("app.js?v=APP_VERSION");
+        window.forgeMark("app.js parse");
+        const script = document.createElement("script");
+        script.src = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+        await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+            document.body.appendChild(script);
+        });
+    }
+
+    // Full screen needs a click. On Android, it also lets us lock the orientation the game started in.
+    const fullscreen = document.getElementById("fullscreen");
+    if (document.documentElement.requestFullscreen) {
+        fullscreen.addEventListener("click", async () => {
+            try {
+                await document.documentElement.requestFullscreen();
+                const landscape = innerWidth >= innerHeight;
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock(landscape ? "landscape" : "portrait").catch(() => {});
+                }
+            } catch (e) {
+                console.warn("Full screen refused:", e);
+            }
+        });
+        document.addEventListener("fullscreenchange", () => {
+            fullscreen.style.display = document.fullscreenElement ? "none" : "block";
+        });
+        // Shown for a few seconds after loading (so it can be found), then while the pointer
+        // rests near the middle of the top edge. Waiting for the pointer to rest means a quick pass
+        // over the top (clicking a tab) doesn't bring it up under the pointer.
+        let hideTimer = 0, restTimer = 0;
+        window.forgeShowFullscreen = ms => {
+            fullscreen.classList.add("shown");
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
+                if (!fullscreen.matches(":hover")) fullscreen.classList.remove("shown");
+            }, ms);
+        };
+        fullscreen.addEventListener("mouseleave", () => window.forgeShowFullscreen(1500));
+        const nearTop = e => e.clientY < 40 && Math.abs(e.clientX - innerWidth / 2) < 80;
+        window.addEventListener("pointermove", e => {
+            clearTimeout(restTimer);
+            if (nearTop(e) && !fullscreen.classList.contains("shown")) {
+                restTimer = setTimeout(() => window.forgeShowFullscreen(2500), 400);
+            }
+        });
+        // Touch screens have no hover, so a tap there brings it up.
+        window.addEventListener("pointerdown", e => {
+            if (e.pointerType !== "mouse" && nearTop(e)) window.forgeShowFullscreen(3000);
+        });
+    }
+
+    // Progress of long work, from Java (forgeweb.compat.Progress). It drives the loading screen's bar
+    // while that's up, and a small floating bar over the game after that. A null label hides the
+    // floating bar.
+    const task = document.getElementById("task");
+    window.forgeProgress = (label, fraction) => {
+        const f = Math.max(0, Math.min(1, fraction || 0));
+        if (document.body.contains(loading) && loading.style.opacity !== "0") {
+            if (label == null) return;
+            fill.style.width = (100 * (DOWNLOAD_SHARE + (1 - DOWNLOAD_SHARE) * f)).toFixed(1) + "%";
+            status.textContent = label;
+            return;
+        }
+        if (label == null) { task.style.display = "none"; return; }
+        // An empty label shows just the bar, because the game already says what it's doing (for
+        // example, world generation).
+        task.querySelector(".label").textContent = label;
+        task.querySelector(".label").style.display = label ? "" : "none";
+        task.querySelector(".fill").style.width = (100 * f).toFixed(1) + "%";
+        task.style.display = "flex";
+    };
+
+    // Called from Java when the game draws its first frame (forgeweb.compat.LoadingScreen).
+    window.forgeLoadingDone = () => {
+        loading.style.opacity = "0";
+        setTimeout(() => loading.remove(), 450);
+        if (document.documentElement.requestFullscreen) {
+            fullscreen.style.display = "block";
+            window.forgeShowFullscreen(4000);
+        }
+    };
+
+    // World generation's Web Worker (forgeweb.compat.WfcPool), downloaded once, here, so starting
+    // the workers later needs no requests. This is optional, because without it WfcPool loads the
+    // file itself.
+    async function loadWorker() {
+        try {
+            const code = await download("wfc-worker.js?v=WORKER_VERSION");
+            window.forgeWfcUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+        } catch (e) {
+            console.warn("wfc-worker.js not preloaded:", e);
+        }
+    }
+
+    Promise.all([loadApp(), prefetch(), loadUserFiles(), loadWorker()]).then(() => {
+        window.forgeMark("gdx preload");
+        fill.style.width = (100 * DOWNLOAD_SHARE).toFixed(1) + "%";
+        status.textContent = "Starting Forge…";
+        // Let the status paint before Java takes over the main thread.
+        setTimeout(() => main(), 30);
+    }).catch(e => {
+        status.textContent = "Could not load the game: " + e.message;
+        console.error(e);
+    });
+})();
+</script>
+</body>
+</html>

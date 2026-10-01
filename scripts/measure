@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Baseline numbers for the web build (see PLAN.md): download size, startup time, world-generation
+# time and memory. Needs the build (scripts/build-web) and the server (scripts/serve-web).
+# Plays a new game with a fixed world seed (?seed=), so runs are comparable. Output: out/measure/
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$ROOT/web/build/dist/js/webapp/app.js"
+SEED="${SEED:-1}"
+EXTRA="${EXTRA:-}"  # more page parameters, e.g. EXTRA='&wfc=local'
+OUT="$ROOT/out/measure"
+mkdir -p "$OUT"
+
+raw=$(wc -c < "$APP")
+gz=$(gzip -c "$APP" | wc -c)
+printf 'app.js: %d MB raw, %.1f MB gzip\n' $((raw / 1048576)) "$(echo "$gz / 1048576" | bc -l)"
+grep -h "build peak memory\|BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log" 2>/dev/null || true
+
+"$ROOT/scripts/webtest" --url "http://host.docker.internal:8090/index.html?test=1&seed=$SEED$EXTRA" \
+  --heartbeat 30 --max-time 900 --heap-sampling --log out/measure/console.log \
+  --steps "until 'ui/minimap_player.png' 300; heap out/measure/heap_title.txt; wait 4; click 534 87; until 'ui/new_game' 60; wait 4; click 1115 445; ${PROFILE:-}until 'Generating world took' 400; wait 10; heap out/measure/heap_world.txt; shot out/measure/world.png" \
+  > "$OUT/run.txt" 2>&1 || { tail -20 "$OUT/run.txt"; exit 1; }
+
+grep -E "until 'ui/minimap_player.png'|World seed|World hash|biomes in total|Generating world took|^heap:" "$OUT/run.txt" "$OUT/console.log" \
+  | sed -e 's/^[^:]*://' -e "s/until 'ui\/minimap_player.png': found after/title screen after/"

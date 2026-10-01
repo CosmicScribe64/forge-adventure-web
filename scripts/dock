@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Run a command inside the build container with the project mounted at /work.
+# Usage: scripts/dock <command...>     e.g. scripts/dock mvn -v
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+IMAGE=shandalar-forge-build
+
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker build -t "$IMAGE" "$ROOT/docker"
+fi
+
+exec docker run --rm ${DOCK_NAME:+--name $DOCK_NAME} \
+  -v "$ROOT":/work \
+  -v shandalar-m2:/root/.m2 \
+  -v shandalar-gradle:/root/.gradle \
+  -w "/work/${DOCK_CWD:-}" \
+  ${DOCK_PORTS:+-p $DOCK_PORTS} \
+  ${DOCK_ENV:+-e $DOCK_ENV} \
+  "$IMAGE" bash -lc "$*"

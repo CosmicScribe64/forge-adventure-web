@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Send one harness command to the running play session and print its JSON result (one line; the
+# state is trimmed to the useful parts). -p pretty-prints. Usage: scripts/api [-p] 'goto Deep Silt'
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PRETTY=0; [ "${1:-}" = "-p" ] && { PRETTY=1; shift; }
+export PRETTY
+"$ROOT/scripts/play" "api $*" | grep '^api' | cut -c6- | python3 -c '
+import json, os, sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw, strict=False)
+except Exception:
+    print(raw); sys.exit(0)
+if isinstance(d, dict) and "scene" in d:
+    ents = d.pop("entities", [])
+    d["enemies"] = [(e["name"], e["dist"]) for e in ents if e["kind"] == "EnemySprite"]
+    d["nearby"] = [(e["kind"], e["name"], e["dist"]) for e in ents if e["kind"] != "EnemySprite"][:8]
+    d["pois"] = [(p["name"], p["type"], p["dist"]) for p in d.get("pois", [])][:8]
+    d["texts"] = [t for t in d.get("texts", []) if t.strip()][:10]
+import os
+print(json.dumps(d, indent=1 if os.environ.get("PRETTY") == "1" else None, ensure_ascii=False))
+'

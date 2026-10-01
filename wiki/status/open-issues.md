@@ -1,0 +1,75 @@
+---
+type: status
+sources: [PLAN.md#next, NOTES.md#review, NOTES.md#round-6, NOTES.md#round-11]
+updated: 2026-10-01
+tags: [issues, todo]
+---
+
+# Open issues
+
+Known problems that aren't fixed yet, as of 2026-09-29. Remove an item when it's fixed, and log
+the change.
+
+## User-reported (watched play-through and later testing)
+- [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
+  in Round 10. See [[screen-layout]].
+- [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
+  switch on resize. That's upstream behaviour, and the user isn't sure it should switch.
+
+## Startup (Round 11)
+See [[startup-and-loading]].
+- [ ] Split the startup pack. The title screen waits for 5.9 MB (77 files) that only the first
+  map needs. Splitting needs Java to wait for a download that's already in flight (the Phase 6
+  async fetch).
+- [ ] The biggest phases left are "Loading cards from archive" (about 6.5 s) and "Finishing
+  startup" (about 3 s).
+- [ ] Views wider than a small map show the clear colour past the map, next to the map's
+  near-black, which makes a faint band edge. See [[screen-layout]].
+
+## Harness gaps
+See [[webtest-harness]].
+- [ ] `dismiss` can press a choice before all the choices appear.
+- [ ] `state` should report the mana cost and colours of cards in hand, Forge's overlays (damage
+  assignment, choosers, ordering), and non-basic lands (for example Timber Gorge).
+- [ ] Add an `autoplay [turns]` harness command, based on the autopilot from the browser session.
+- [ ] Check the landscape hand layout (a column on the right) against Forge.
+- [ ] Support exit-only POIs, towns and shops, and complete the "travel to town" quest.
+
+## Known technical debt (2026-09-29 review)
+- [ ] Native deflate buffers the whole payload. At the end of generation that's the world map
+  PNG, about 31 MB raw, which is a short memory spike on phones. See [[memory-budget]].
+- [ ] The native deflate path ignores the caller's Deflater level and state. See [[saves]].
+- [ ] Extended views much taller or wider than 960 units can show world chunks that aren't
+  loaded. See [[screen-layout]].
+- [ ] The `ImageUtil` memo and the card art cache are both unbounded. See [[memory-budget]].
+- [ ] `fallback_skin/title_bg_lq.png` fails to load at startup, and a dummy texture is used
+  instead. This predates the port's changes.
+
+## Plan items not started
+- [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
+  about EventBus listeners with no handlers.
+- [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
+- [ ] Phase 5: lazy card scripts, releasing the minimap pixmap, an LRU image cache, and a test at
+  a phone viewport.
+- [ ] Phase 6: async fetch, a service worker, and save versioning.
+- [ ] Re-measure app.js after the Phase 2 stubs. See [[metrics]].
+
+## Fixed since the last ingest (Rounds 10-11)
+Loading bar stages and the world-generation bar (R10). Full screen fills the page and follows
+resizes (R10). The Load screen freeze and silently skipped save hooks (R11, [[saves]]). White
+lines in the cave and across TenPatch and NinePatch buttons (R11, [[screen-layout]]). The resize
+crash, from TeaVM's long casts of NaN (R11, [[bug-catalog]]). The full-screen button moved and
+now hides itself. VS screen names fit (R11). Black save thumbnails (R11, [[saves]]). The white
+line across the duel background is Forge's own field separator, not a bug.
+
+## Unexplained
+- [ ] Round 6's idle gap of about 60 s after the fonts was never recorded as explained. Round 7's
+  prefetching may have fixed it. See [[startup-and-loading]].
+- [ ] Is the Phase 3 transformer that drops `synchronized` still needed? See [[plan-phases]].
+
+## Before hosting a public build
+The source repository was prepared for release on 2026-10-01. These items matter once a build
+is hosted for other people to play.
+- [ ] Follow Scryfall's guidance of about 10 requests per second. See [[scryfall]].
+- [ ] Add a GitHub Pages workflow (a release build, with app.js under 100 MB). See
+  [[build-pipeline]].

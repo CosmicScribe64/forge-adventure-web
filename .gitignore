@@ -1,0 +1,19 @@
+# Generated: scripts/update-forge, build-forge-libs, build-webdata, build-web.
+# Anchored with a leading "/": web/src/main/java/forge/ is source and must stay tracked.
+/forge/
+/web/libs/
+/web/build/
+/web/.gradle/
+/web/webdata/
+/web/webassets/
+/out/
+
+# JVM heap dumps from TeaVM running out of memory (several GB each)
+*.hprof
+
+# Per-machine state
+.DS_Store
+__pycache__/
+*.pyc
+.claude/settings.local.json
+wiki/.obsidian/workspace.json

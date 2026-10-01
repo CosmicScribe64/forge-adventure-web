@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Build the world-generation Web Worker (forgeweb.worker.WfcWorker) into web/build/dist/wfc-worker.js;
+# scripts/build-web and scripts/selftest copy it next to their index.html. Log: web/build/worker.log
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+mkdir -p "$ROOT/web/build"
+DOCK_CWD=web DOCK_ENV="WORKER=true -e TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-3072} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED}" \
+  "$ROOT/scripts/dock" 'export GRADLE_OPTS="-Xmx640m -Dorg.gradle.daemon=false"; gradle --console=plain gdx_teavm_web_js_build 2>&1' \
+  > "$ROOT/web/build/worker.log" || true
+APP="$(find "$ROOT/web/build/dist/worker" -name app.js | head -1)"
+if ! grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/worker.log" || [ -z "$APP" ]; then
+  grep -E " error: |was not found|FAILED" "$ROOT/web/build/worker.log" | head -20
+  echo "worker build failed; see web/build/worker.log"
+  exit 1
+fi
+# The TeaVM module exports main() on the worker's global scope; start it.
+{ cat "$APP"; echo; echo "main();"; } > "$ROOT/web/build/dist/wfc-worker.js"
+echo "wfc-worker.js: $(( $(wc -c < "$ROOT/web/build/dist/wfc-worker.js") / 1024 )) KB"

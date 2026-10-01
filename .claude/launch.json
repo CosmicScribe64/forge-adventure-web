@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "forge-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/serve-web"],
+      "port": 8090,
+      "autoPort": true
+    }
+  ]
+}

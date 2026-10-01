@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Start a play session (scripts/play-start) and play the tutorial to the overworld: talk to the
+# mage, take the rewards, leave the cave, close the intro dialogs (all through the game's test
+# harness, forgeweb.test.WebTest). Screenshot: out/overworld.png
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+"$ROOT/scripts/play-start"
+"$ROOT/scripts/play" 'api interact Adept Black Wizard; wait 3; api dismiss; api click Why am I here?; api dismiss; api click done; wait 2; api click done; wait 3; api dismiss; api goto portal; wait 8; api dismiss; shot out/overworld.png' | grep -E '^api' | cut -c1-200
