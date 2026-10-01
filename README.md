@@ -8,7 +8,7 @@ few changes to Forge as possible.
 **Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>**. The first visit
 downloads about 30 MB, and the game needs about 1.1 GB of memory once you're in the world.
 
-![The Shandalar overworld, running in Chrome](docs/overworld.png)
+![The Adventure overworld, running in Chrome](docs/overworld.png)
 
 ## How it works
 
