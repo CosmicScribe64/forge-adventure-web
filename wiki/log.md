@@ -124,3 +124,14 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
 - Added `.github/workflows/ci.yml`: on every push to main and every pull request it runs the wiki
   lint, `update-forge`, the Forge build, `build-webdata`, `scripts/selftest` and `build-web`. Its
   first run passed, which was also the first SelfTest run on Linux.
+
+## [2026-10-01] update | Saves on the live site, the phone crash, an honest README
+- Saves work on the live site: a quicksave on the world map survived a page reload, the Load
+  screen showed its date, thumbnail and location, and loading it restored position, life, gold
+  and shards. No console errors.
+- User report: phones crash after the main menu appears. Memory at the menu is about 1.3 GB
+  (renderer plus GPU) whatever the screen size; numbers in [[memory-budget]], issue in
+  [[open-issues]].
+- `webtest` gained `--scale` (device pixel ratio) and `--mobile` (mobile viewport and touch).
+- README: a Status section that says plainly what works, that phones don't, and that a lot still
+  breaks.

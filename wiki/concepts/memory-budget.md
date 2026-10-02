@@ -20,6 +20,20 @@ heap and other ArrayBuffers are, and wasm memory never shrinks.
 | Renderer process | 1.46 GB |
 | GPU process | 743 MB (software GL, so textures count here) |
 
+## At the main menu (2026-10-01, headless, software GL, local server)
+
+| Measure | Desktop 1280x720 | Phone 390x844 at 3x |
+|---|---|---|
+| Renderer process | 817 MB | 818 MB (886 MB peak while loading) |
+| GPU process | 472 MB | 482 MB |
+| JS heap used | 280 MB | 280 MB |
+| ArrayBuffer backing stores | 310 MB | 308 MB |
+
+Screen size hardly matters: the canvas is drawn at CSS pixels (390x844 even at 3x), so the cost
+is data, not pixels. Phones kill the tab at this size ([[open-issues]]). Candidates to check
+first: the app.js Blob URL is never revoked (a 76 MB copy), the startup pack and card zip stay
+in memory after startup, and card scripts load eagerly.
+
 ## Fixed
 
 - **gdx-teavm `AsyncResult` ran loading tasks more than once** (on a timer, and again on every

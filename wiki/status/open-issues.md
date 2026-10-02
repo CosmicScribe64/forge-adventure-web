@@ -11,6 +11,11 @@ Known problems that aren't fixed yet, as of 2026-09-29. Remove an item when it's
 the change.
 
 ## User-reported (watched play-through and later testing)
+- [ ] **Phones crash** (user report, 2026-10-01): on the live site the game reached the main
+  menu, the page reloaded, loaded again, and then the tab crashed. Measured headless the same
+  day, the main menu costs about 820 MB in the renderer plus about 480 MB of GPU memory, at a
+  desktop size and at a phone size (390x844 at 3x) alike, which is past what phone browsers allow a
+  tab. This is PLAN Phase 5. See [[memory-budget]].
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't

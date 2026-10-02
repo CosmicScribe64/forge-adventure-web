@@ -5,10 +5,28 @@ Gathering RPG, running in a web browser. The Java game (libGDX) is compiled to J
 [gdx-teavm](https://github.com/xpenatan/gdx-teavm) and [TeaVM](https://teavm.org) 0.15, with as
 few changes to Forge as possible.
 
-**Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>**. The first visit
-downloads about 30 MB, and the game needs about 1.1 GB of memory once you're in the world.
+**Play it at <https://cosmicscribe64.github.io/forge-adventure-web/>**, on a desktop computer.
+The first visit downloads about 30 MB.
 
 ![The Adventure overworld, running in Chrome](docs/overworld.png)
+
+## Status
+
+This is an early, rough port, and a lot still breaks. Expect crashes, layout problems and slow
+spots.
+
+In desktop Chrome you can play the tutorial, generate a world, walk the overworld, visit towns
+and shops, fight duels against Forge's AI, and save and load. That's about as far as testing has
+gone. Other desktop browsers haven't been tried.
+
+Phones don't work yet. The game uses about 1.3 GB of memory by the time the main menu appears,
+which is more than most phone browsers allow a tab, so the page reloads and then crashes.
+Getting it under 1 GB is the next big piece of work.
+
+The title screen takes 20 seconds to a minute or more to appear, depending on your connection
+and computer. [`wiki/status/open-issues.md`](wiki/status/open-issues.md) lists the known
+problems, and bug reports are welcome in the
+[issue tracker](https://github.com/CosmicScribe64/forge-adventure-web/issues).
 
 ## How it works
 

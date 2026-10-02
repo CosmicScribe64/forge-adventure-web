@@ -165,6 +165,8 @@ def main():
     ap.add_argument("--url", default="http://host.docker.internal:8090/index.html?test=1")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=720)
+    ap.add_argument("--scale", type=float, default=1, help="device pixel ratio (phones are 2-3)")
+    ap.add_argument("--mobile", action="store_true", help="emulate a phone: mobile viewport and touch")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait before the steps")
     ap.add_argument("--shot", help="screenshot after the initial wait")
     ap.add_argument("--steps", default="")
@@ -255,7 +257,8 @@ def main():
             "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
             "--enable-webgl", "--disable-dev-shm-usage",
         ])
-        page = browser.new_page(viewport={"width": args.width, "height": args.height})
+        page = browser.new_page(viewport={"width": args.width, "height": args.height},
+                                device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile)
         page.on("console", on_console)
         page.on("crash", lambda *_: crashed.append(True))
         if args.latency or args.mbps:
