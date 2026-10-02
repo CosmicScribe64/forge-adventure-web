@@ -135,3 +135,23 @@ Append-only. Newest at the bottom. `grep "^## \[" wiki/log.md | tail -5`
 - `webtest` gained `--scale` (device pixel ratio) and `--mobile` (mobile viewport and touch).
 - README: a Status section that says plainly what works, that phones don't, and that a lot still
   breaks.
+
+## [2026-10-01] update | Current state and next steps
+State at the end of the day:
+- Live at https://cosmicscribe64.github.io/forge-adventure-web/ (release v0.1.1). CI runs the
+  patch, the Forge build, SelfTest and the game compile on every push; it and the Pages deploys
+  all pass. Saves work on the live site. The README says plainly what works and what doesn't.
+- Desktop Chrome plays through the tutorial, world generation, overworld, towns, duels and saves.
+  Much else still breaks, and other browsers are untested.
+- Phones crash (an iPhone running Chrome): about 1.3 GB at the main menu.
+
+Next steps:
+1. Phone memory (PLAN Phase 5, top priority), in the order listed in [[memory-budget]]: stream
+   music with Howler's `html5: true` (about 62 MB per decoded track today), revoke the app.js and
+   audio Blob URLs, drop the startup pack and card zip after startup, take a heap snapshot of the
+   310 MB of ArrayBuffers, then shrink the card database. Measure each step at the main menu and
+   the overworld, and test on WebKit.
+2. Measure Scryfall request timing in a duel, to confirm Forge's rate limiter works in the
+   browser ([[open-issues]]).
+3. The other items in [[open-issues]]: phone rotation, splitting the startup pack (async fetch),
+   and the harness gaps.

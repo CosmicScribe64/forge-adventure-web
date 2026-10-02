@@ -26,8 +26,9 @@ well on phones.
   6.6 s, and the renderer from 1.46 GB to about 1.1 GB at the world. See [[metrics]].
 - **Startup (Round 11):** the title screen appears after about 18 s headless, down from about
   33 s. The `[ttg]` console lines break this down in any browser. See [[startup-and-loading]].
-- **Next:** splitting the startup pack (async fetch), phone rotation, and the harness gaps. The
-  Round 11 user reports (resize crash, full-screen button, VS screen) are fixed. See
+- **Next:** phone memory first, because phones crash at about 1.3 GB (an iPhone running Chrome,
+  2026-10-01). The ordered steps are in [[memory-budget]]. After that: Scryfall request timing,
+  splitting the startup pack (async fetch), phone rotation, and the harness gaps. See
   [[open-issues]].
 
 ## How it fits together

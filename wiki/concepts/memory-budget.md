@@ -49,9 +49,36 @@ in memory after startup, and card scripts load eagerly.
   font preloading had exhausted the fixed FreeType heap at some screen sizes.
 - `effects/demo.gif` (one 11488x6480 texture) was left out of web data.
 
+## Findings for phones (2026-10-01)
+
+The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
+the strictest per-tab memory limits, so the target is under about 700 MB, half of today's 1.3 GB.
+
+Allocation sampling at the main menu (live JS memory 275 MB):
+- Most of the JS heap is the card database: card-rule parsing (`CardRules$Reader`),
+  `CardDb.addSetCard`, strings (`fromCharCode`, `substring`, regex groups), lists and maps.
+- **Music is fully decoded.** gdx-teavm's `Howl.create` (`webaudio/howler/Howl.java` in
+  backend-web 1.6.1) makes `new Howl({src: [blobUrl]})` without `html5: true`, so Howler decodes
+  the whole file with Web Audio. The menu track (`menu2.mp3`, 1.5 MB, 185 s) becomes about 62 MB
+  of samples, and Howler caches decoded tracks, so each new track (overworld, towns, battles) can
+  add as much again. The Blob URL is never revoked either.
+- `forge-data/packs/blockdata.pack` is prefetched and never taken (270 KB, minor).
+
+Lazy card scripts alone won't help Adventure: `FModel` turns them off on mobile
+(`GuiBase.isMobile() ? false : ...`), because rewards, shops and enemy decks draw from the whole
+card pool and `StaticData.ensureAllCardsLoaded` would load everything anyway.
+
 ## Still to do (PLAN Phase 5, [[open-issues]])
-- Load card scripts lazily (`LOAD_CARD_SCRIPTS_LAZILY`), since the card database dominates the
-  JS heap.
+Next steps, in order:
+1. Stream music instead of decoding it: shadow gdx-teavm's `Howl` (or `HowlMusic`) so music uses
+   `html5: true`, keep short sound effects on Web Audio, and revoke the Blob URLs. Measure the
+   main menu and the overworld before and after.
+2. Revoke the app.js Blob URL once the script has loaded (a 76 MB copy).
+3. Drop the startup pack and the card zip after startup, if nothing reads them again.
+4. Take a heap snapshot to break down the 310 MB of ArrayBuffer backing stores.
+5. Shrink the card database itself (shared strings, smaller per-card structures), since lazy
+   loading can't be used.
+6. Test on a real iPhone, or in WebKit through Playwright, at each step.
 - Release the minimap pixmap after upload.
 - An LRU-capped card image cache (art from [[scryfall]] is cached in memory, unbounded).
 - The `ImageUtil` memo is unbounded.

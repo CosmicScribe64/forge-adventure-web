@@ -16,6 +16,8 @@ the change.
   day, the main menu costs about 820 MB in the renderer plus about 480 MB of GPU memory, at a
   desktop size and at a phone size (390x844 at 3x) alike, which is past what phone browsers allow a
   tab. This is PLAN Phase 5. See [[memory-budget]].
+  The phone was an iPhone running Chrome (WebKit). First fix to try: stream music instead of
+  decoding it (about 62 MB per track today).
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
@@ -54,7 +56,9 @@ See [[webtest-harness]].
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
   about EventBus listeners with no handlers.
 - [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
-- [ ] Phase 5: lazy card scripts, releasing the minimap pixmap, an LRU image cache, and a test at
+- [ ] Phase 5 (top priority, phones crash): stream music, revoke Blob URLs, drop startup data
+  after use, shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
+  minimap pixmap, an LRU image cache, and a test at
   a phone viewport.
 - [ ] Phase 6: async fetch, a service worker, and save versioning.
 - [ ] Re-measure app.js after the Phase 2 stubs. See [[metrics]].
@@ -75,5 +79,8 @@ line across the duel background is Forge's own field separator, not a bug.
 ## Hosting
 The build has been public on GitHub Pages since 2026-10-01 ([[build-pipeline]]).
 - [ ] Card art requests go from each player's browser to Scryfall, which asks for at most about
-  10 requests per second. Nothing limits the rate yet. See [[scryfall]].
+  10 requests per second. Forge's own `ScryfallRateLimiter` (100 ms between `api.scryfall.com`
+  requests, 500 ms for search, backoff on 429; the `cards.scryfall.io` CDN is unthrottled) runs
+  on green threads, where its sleeps really wait, so it should already apply. Still to measure in
+  a session that loads card art, such as a duel. See [[scryfall]].
 - [x] GitHub Pages workflow (`.github/workflows/pages.yml`, 2026-10-01).
