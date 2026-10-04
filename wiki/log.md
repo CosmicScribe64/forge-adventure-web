@@ -179,3 +179,15 @@ Next steps:
 - Found that a burst of 11 downloads loses 8 of them, because TeaVM 0.15's `waitForOtherThreads`
   discards queued monitor waiters. Fix proposed, not made.
 - Pages touched: [[scryfall]], [[open-issues]], [[bug-catalog]], [[green-threads]].
+
+## [2026-10-04] fix | TeaVM monitor queue dropped waiting threads
+- Fixed the shadow `web/src/main/java/org/teavm/classlib/java/lang/TObject.java`:
+  `waitForOtherThreads` now sets the queue to `null` only when it is empty after removing one
+  waiter. The `notify`, `notifyAll` and `monitorEnter` paths were read and have no similar flaw.
+- The [[selftest]] check "every thread queued on a held monitor eventually enters it" already
+  existed. Without the fix it failed (1 of 4 contenders entered); with the fix the suite passes,
+  38 of 38.
+- Rebuilt the game and repeated the deck editor burst in headless Chromium: 22 sends to
+  `api.scryfall.com`, gaps 103 to 148 ms, busiest second held 9 sends. Sandbox proxy errors made
+  the downloads themselves fail, so only the sends and spacing were verified.
+- Pages touched: [[bug-catalog]], [[green-threads]], [[scryfall]], [[open-issues]], [[selftest]].

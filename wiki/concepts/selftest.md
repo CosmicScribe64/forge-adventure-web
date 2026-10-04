@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#fast-checks, NOTES.md#round-11, web/src/main/java/forgeweb/selftest/SelfTest.java, scripts/selftest]
-updated: 2026-10-01
+updated: 2026-10-04
 tags: [testing]
 ---
 
@@ -32,7 +32,9 @@ Grouped by concept:
   http, `getStackTrace` has frames, deck-list regex. ([[bug-catalog]])
 - **Threads**: an executor with a CountDownLatch, a failing task through `Future.get`, sleep in a browser
   callback, UI-thread join on CompletableFuture, BlockingDeque, **small synchronized method
-  while another thread is suspended holding the lock** (using the real `Game.isGameOver`).
+  while another thread is suspended holding the lock** (using the real `Game.isGameOver`),
+  **every thread queued on a held monitor eventually enters it** (four contenders, an owner
+  that sleeps 150 ms, a 3 s timeout; added 2026-10-04, 1 of 4 entered before the `TObject` fix).
   ([[green-threads]])
 - **Files**: every card script in `cardsfolder.zip`, packs read whole in one download,
   `File.list(filter)`, `./res` resolution, starter deck file sections, demo.gif absent.

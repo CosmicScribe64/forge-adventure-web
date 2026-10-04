@@ -75,15 +75,20 @@ before `WaitCallback.invokeAndWait` waited, and the game hung silently. The rule
 TeaVM 0.15's `TObject.waitForOtherThreads` wakes only the first thread waiting for a monitor and
 then discards the rest of the queue. With three or more green threads waiting for one lock held
 by a sleeping or suspended owner, all but the first waiter never run again. Found 2026-10-04
-through `ScryfallRateLimiter.acquire`, which sleeps inside `synchronized`; details and the
-proposed fix in [[scryfall]]. Until it is fixed, avoid code paths where many threads queue on
-one lock across a suspension point.
+through `ScryfallRateLimiter.acquire`, which sleeps inside `synchronized`.
+
+Fixed the same day in the shadow `TObject`: after removing one waiter, the queue is set to
+`null` only if it is empty. Each `monitorExit` schedules one `waitForOtherThreads`, and each
+woken thread schedules the next when it leaves, so the queue now drains one thread at a time.
+The `notify` and `notifyAll` paths were checked and are sound: `notifyAll` removes every
+listener, and `notify` clears the list only when it is empty. The regression check is in
+[[selftest]]. Stock TeaVM 0.15 still has the flaw ([[open-issues]]).
 
 ## Verified by
 [[selftest]] checks: sleep from a browser callback, UI-thread task blocking on a
 CompletableFuture, an executor with a CountDownLatch, a failing task through `Future.get`, BlockingDeque,
 `getStackTrace`, and a small synchronized method while another thread is suspended holding the
-lock.
+lock, and four green threads queued on a lock held by a sleeping thread.
 
 ## See also
 [[teavm-gotchas]] · [[bug-catalog]] · [[world-generation]] (the calling green thread waits on workers)

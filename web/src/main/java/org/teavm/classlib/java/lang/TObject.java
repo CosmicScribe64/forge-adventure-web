@@ -209,7 +209,10 @@ public class TObject {
         if (monitor.enteringThreads != null && !monitor.enteringThreads.isEmpty()) {
             var enteringThreads = monitor.enteringThreads;
             PlatformRunnable r = enteringThreads.remove();
-            monitor.enteringThreads = null;
+            // Keep the other queued threads: dropping the queue left them waiting forever.
+            if (enteringThreads.isEmpty()) {
+                monitor.enteringThreads = null;
+            }
             r.run();
         }
     }

@@ -37,6 +37,7 @@ seed 1, with a hook on `XMLHttpRequest.send`:
 |---|---|---|---|---|
 | First duel, Blue Tower, hand of 7 | 7 to `api.scryfall.com` | minimum 112 ms, median 201 ms | 6 | 0 |
 | Deck editor, 11 rows needing art | 3 sent of 11 started | 111 ms and 117 ms | 3 | 0 |
+| Deck editor after the `TObject` fix, same scenario | 22 sent, all started requests | minimum 103 ms, maximum 148 ms | 9 | 0 |
 
 No request went to any other Scryfall host that the Performance API could see. Neither log
 contained a line with "429" or "cooldown", so the limiter's backoff was never exercised. An
@@ -52,15 +53,20 @@ The duel did not show it because its fetches started about 100 to 300 ms apart.
 **Root cause.** TeaVM 0.15's `TObject.waitForOtherThreads` takes one waiting thread off the
 monitor's queue and then sets the whole queue to `null`. Every other thread waiting for the
 lock is dropped and never woken. `acquire` is the first code here where several green threads
-queue on one lock while its owner sleeps, so it hits this. The shadow `TObject` in
-`web/src/main/java` keeps the stock behaviour (the stock source is in the
-`teavm-classlib-0.15.0-sources.jar`). See [[green-threads]] and [[bug-catalog]].
+queue on one lock while its owner sleeps, so it hits this. The stock source is in the
+`teavm-classlib-0.15.0-sources.jar`; our shadow `TObject` in `web/src/main/java` carried the same
+code until the fix below. See [[green-threads]] and [[bug-catalog]].
 
-**Proposed fix, not yet made.** In the shadow `TObject.waitForOtherThreads`, remove one waiter
-and set the queue to `null` only when it is empty afterwards. Add a [[selftest]] check with
-three or more green threads contending for one lock while the owner sleeps. Then repeat the
-deck editor measurement and expect 11 sends at least 100 ms apart. Report the bug to TeaVM too
-([[open-issues]]).
+**Fix (2026-10-04).** The shadow `TObject.waitForOtherThreads` now removes one waiter and sets
+the queue to `null` only when it is empty afterwards. The [[selftest]] check "every thread queued
+on a held monitor eventually enters it" (four contenders, a sleeping owner) failed before the fix
+with 1 of 4 entering, and passes after it; the whole suite passes, 38 of 38. Repeating the deck
+editor measurement on the rebuilt game (headless Chromium, new character, seed 1) sent 22
+requests to `api.scryfall.com`, none lost. The gaps were between 103 ms and 148 ms, and the
+busiest 1 s window held 9 sends, under the 10 per second Scryfall asks for. In that sandbox run
+every request ended with status 0 because the sandbox's proxy connection failed, so the numbers
+show the sends and their spacing, not successful downloads. The bug is still to be reported to
+TeaVM ([[open-issues]]).
 
 ## See also
 [[memory-budget]] · [[webtest-harness]] · [[green-threads]]

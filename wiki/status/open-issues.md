@@ -95,8 +95,10 @@ The build has been public on GitHub Pages since 2026-10-01 ([[build-pipeline]]).
 - [ ] Card art requests go from each player's browser to Scryfall, which asks for at most about
   10 requests per second. Measured 2026-10-04: the limiter does space requests to
   `api.scryfall.com` at least 100 ms apart (minimum gap 111 ms, peak 6 requests in one second,
-  no 429s), so the rate is safe. But a burst of 11 downloads in the deck editor sent only 3
-  requests and silently lost the other 8. The cause is a TeaVM 0.15 bug in `TObject`'s monitor
-  queue, which drops all but one waiting thread. Proposed fix and numbers in [[scryfall]].
-  Awaiting a decision before changing `TObject`.
+  no 429s), so the rate is safe. A burst of 11 downloads in the deck editor had sent only 3
+  requests and silently lost the other 8, because of a TeaVM 0.15 bug in `TObject`'s monitor
+  queue. Fixed in the shadow `TObject` on 2026-10-04: the same scenario now sends all 22
+  requests, at least 103 ms apart ([[scryfall]]).
+- [ ] Report the `TObject.waitForOtherThreads` bug to TeaVM, with the fix and the failing check
+  (four threads waiting on a lock whose owner sleeps; only the first ever enters).
 - [x] GitHub Pages workflow (`.github/workflows/pages.yml`, 2026-10-01).
