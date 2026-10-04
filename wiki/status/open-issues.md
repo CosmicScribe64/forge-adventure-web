@@ -1,7 +1,7 @@
 ---
 type: status
 sources: [PLAN.md#next, NOTES.md#review, NOTES.md#round-6, NOTES.md#round-11]
-updated: 2026-10-01
+updated: 2026-10-04
 tags: [issues, todo]
 ---
 
@@ -79,7 +79,8 @@ line across the duel background is Forge's own field separator, not a bug.
 ## Upstream
 - [ ] Report the TeaVM and gdx-teavm bugs to their projects. None has been reported yet; the list,
   with each one's status, is in [[bug-catalog]]. The gdx-teavm ones (AsyncResult, the pixmap
-  copy, the FreeType leak, Howler decoding music) have fixes here to offer.
+  copy, the FreeType leak, Howler decoding music) have fixes here to offer. Add the lost monitor
+  waiters bug in `TObject` ([[scryfall]]) once it is fixed here.
 - [ ] Offer the upstreamable Forge patches to Card-Forge (world generation speed, the
   colorIdentity save bug, the duel-start fixes, ViewLayout, the texture seams). See
   [[forge-patches-not-fork]].
@@ -92,8 +93,10 @@ line across the duel background is Forge's own field separator, not a bug.
 ## Hosting
 The build has been public on GitHub Pages since 2026-10-01 ([[build-pipeline]]).
 - [ ] Card art requests go from each player's browser to Scryfall, which asks for at most about
-  10 requests per second. Forge's own `ScryfallRateLimiter` (100 ms between `api.scryfall.com`
-  requests, 500 ms for search, backoff on 429; the `cards.scryfall.io` CDN is unthrottled) runs
-  on green threads, where its sleeps really wait, so it should already apply. Still to measure in
-  a session that loads card art, such as a duel. See [[scryfall]].
+  10 requests per second. Measured 2026-10-04: the limiter does space requests to
+  `api.scryfall.com` at least 100 ms apart (minimum gap 111 ms, peak 6 requests in one second,
+  no 429s), so the rate is safe. But a burst of 11 downloads in the deck editor sent only 3
+  requests and silently lost the other 8. The cause is a TeaVM 0.15 bug in `TObject`'s monitor
+  queue, which drops all but one waiting thread. Proposed fix and numbers in [[scryfall]].
+  Awaiting a decision before changing `TObject`.
 - [x] GitHub Pages workflow (`.github/workflows/pages.yml`, 2026-10-01).

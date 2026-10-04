@@ -169,3 +169,13 @@ Next steps:
   commits). README.md and CLAUDE.md point to it.
 - Moved the test helpers from a session scratch folder into the repo: `web/tools/serve-compressed.py`,
   `web/tools/loader-check.js` and `web/tools/scryfall-requests.js`.
+
+## [2026-10-04] query | Does the Scryfall rate limiter space requests in the browser?
+- Drove a headless session to a duel in the Blue Tower and to the Adventure deck editor, and
+  recorded `XMLHttpRequest.send` timing plus the console log. Read `ScryfallRateLimiter`,
+  `LibGDXImageFetcher`, `TGreenThreadExecutor` and the shadow `TObject`.
+- Result: gaps between sends were at least 111 ms (duel: 7 requests, median 201 ms, peak 6 in one
+  second; deck editor: 3 requests), no 429s, no "429" or "cooldown" log lines. Spacing works.
+- Found that a burst of 11 downloads loses 8 of them, because TeaVM 0.15's `waitForOtherThreads`
+  discards queued monitor waiters. Fix proposed, not made.
+- Pages touched: [[scryfall]], [[open-issues]], [[bug-catalog]], [[green-threads]].

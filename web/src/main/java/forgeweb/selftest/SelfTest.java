@@ -137,6 +137,7 @@ public class SelfTest {
         });
         check("DeflaterOutputStream (native zlib) reads back with InflaterInputStream", SelfTest::deflateRoundTrip);
         check("small synchronized method while another thread is suspended holding the lock", SelfTest::borrowedMonitor);
+        check("every thread queued on a held monitor eventually enters it", SelfTest::contendedMonitor);
         check("world generation benchmark (wave-function collapse, as World.generateNew)", SelfTest::wfcBenchmark);
 
         System.out.println("SELFTEST DONE " + passed + "/" + total);
@@ -793,6 +794,31 @@ public class SelfTest {
         synchronized (c) { // and the lock must still work normally afterwards
             expect(seen == 7 && again == 7 && c.get() == 7, "seen " + seen + "/" + again);
         }
+    }
+
+    /** One thread sleeps holding a lock while four more queue to enter it; all must get in. */
+    private static void contendedMonitor() throws Exception {
+        final Object lock = new Object();
+        final java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(4);
+        Thread holder = new Thread(() -> {
+            synchronized (lock) {
+                try {
+                    Thread.sleep(150); // suspends while holding the lock
+                } catch (InterruptedException ignored) {
+                }
+            }
+        });
+        holder.start();
+        Thread.sleep(30);
+        for (int i = 0; i < 4; i++) {
+            new Thread(() -> {
+                synchronized (lock) {
+                    entered.countDown();
+                }
+            }).start();
+        }
+        boolean all = entered.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        expect(all, "only " + (4 - entered.getCount()) + " of 4 contenders entered the monitor");
     }
 
     /**

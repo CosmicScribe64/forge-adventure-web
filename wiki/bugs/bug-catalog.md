@@ -1,7 +1,7 @@
 ---
 type: bug
 sources: [NOTES.md, NOTES.md#round-11, web/src/main/java]
-updated: 2026-10-01
+updated: 2026-10-04
 tags: [bugs, upstream]
 ---
 
@@ -23,6 +23,7 @@ is filed.
 | `Thread.currentThread()` stale after a green thread suspends | Forge thought frames weren't on the UI thread | `MainThread*` | R3 |
 | `LinkedBlockingDeque` is a plain LinkedList | Forge's `InputQueue.push` never compiled | shadow `TLinkedBlockingDeque` | R8 |
 | Small synchronized method throws when the lock's owner is suspended | conceding a duel crashed (`Game.isGameOver`) | shadow `TObject`, borrowed monitors ([[green-threads]]) | R8/R9 |
+| `TObject.waitForOtherThreads` wakes one waiting thread and sets the queue to `null`, so every other thread waiting for that monitor is lost | with 3 or more green threads waiting on one lock, all but the first waiter hang forever; seen as 8 of 11 card art downloads never sent, through `ScryfallRateLimiter.acquire` ([[scryfall]]). Not fixed yet; proposed fix is to null the queue only when empty | none yet | 2026-10-04 |
 | `UUID.randomUUID` uses `crypto.randomUUID` (https and localhost only) | crash on plain-http hosts | redirect | R8 |
 | `UUID` not `Serializable` | saves | own stream tag ([[saves]]) | R8 |
 | `Deflater` is jzlib (pure Java), slow | duel-start lag on autosave | shadow `DeflaterOutputStream` to use the browser's `CompressionStream` | R10 |

@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#round-3, NOTES.md#round-5, NOTES.md#round-8, NOTES.md#round-9, NOTES.md#review, web/src/main/java/forgeweb/compat/UiThread.java, web/src/main/java/org/teavm/classlib/java/lang/TObject.java]
-updated: 2026-10-01
+updated: 2026-10-04
 tags: [threads, teavm, concurrency]
 ---
 
@@ -69,6 +69,15 @@ A green thread that yields *after* posting work can miss the `notify()` of a qui
 example, `Progress` yielded right after `FThreads.invokeInEdtLater`, the EDT task notified
 before `WaitCallback.invokeAndWait` waited, and the game hung silently. The rule is to yield
 **before** posting. (Found in the 2026-09-29 review.)
+
+## Hazard: contended monitors lose waiters
+
+TeaVM 0.15's `TObject.waitForOtherThreads` wakes only the first thread waiting for a monitor and
+then discards the rest of the queue. With three or more green threads waiting for one lock held
+by a sleeping or suspended owner, all but the first waiter never run again. Found 2026-10-04
+through `ScryfallRateLimiter.acquire`, which sleeps inside `synchronized`; details and the
+proposed fix in [[scryfall]]. Until it is fixed, avoid code paths where many threads queue on
+one lock across a suspension point.
 
 ## Verified by
 [[selftest]] checks: sleep from a browser callback, UI-thread task blocking on a
