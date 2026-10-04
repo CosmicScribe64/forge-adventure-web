@@ -155,3 +155,9 @@ Next steps:
    browser ([[open-issues]]).
 3. The other items in [[open-issues]]: phone rotation, splitting the startup pack (async fetch),
    and the harness gaps.
+
+## [2026-10-04] update | Filling gaps in the to-do list
+- Checked the future work against the wiki and added what was missing: the Howler music bug in
+  [[bug-catalog]], an Upstream section in [[open-issues]] (report the TeaVM and gdx-teavm bugs,
+  offer the Forge patches), the non-reproducible card zip, and the startup-share discrepancy in
+  `build-webdata`'s docstring.

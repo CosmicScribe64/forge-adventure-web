@@ -49,6 +49,11 @@ See [[webtest-harness]].
 - [ ] Extended views much taller or wider than 960 units can show world chunks that aren't
   loaded. See [[screen-layout]].
 - [ ] The `ImageUtil` memo and the card art cache are both unbounded. See [[memory-budget]].
+- [ ] `scripts/build-webdata` output isn't reproducible: `cardsfolder.zip` stores each card file's
+  timestamp, so a fresh checkout gives a different file with the same contents. Writing fixed
+  timestamps would fix it. See [[build-pipeline]].
+- [ ] `scripts/build-webdata`'s docstring says inflating the card zip took "a quarter of startup",
+  while NOTES.md (Round 11) says about 10%. Check which is right.
 - [ ] `fallback_skin/title_bg_lq.png` fails to load at startup, and a dummy texture is used
   instead. This predates the port's changes.
 
@@ -70,6 +75,14 @@ lines in the cave and across TenPatch and NinePatch buttons (R11, [[screen-layou
 crash, from TeaVM's long casts of NaN (R11, [[bug-catalog]]). The full-screen button moved and
 now hides itself. VS screen names fit (R11). Black save thumbnails (R11, [[saves]]). The white
 line across the duel background is Forge's own field separator, not a bug.
+
+## Upstream
+- [ ] Report the TeaVM and gdx-teavm bugs to their projects. None has been reported yet; the list,
+  with each one's status, is in [[bug-catalog]]. The gdx-teavm ones (AsyncResult, the pixmap
+  copy, the FreeType leak, Howler decoding music) have fixes here to offer.
+- [ ] Offer the upstreamable Forge patches to Card-Forge (world generation speed, the
+  colorIdentity save bug, the duel-start fixes, ViewLayout, the texture seams). See
+  [[forge-patches-not-fork]].
 
 ## Unexplained
 - [ ] Round 6's idle gap of about 60 s after the fonts was never recorded as explained. Round 7's

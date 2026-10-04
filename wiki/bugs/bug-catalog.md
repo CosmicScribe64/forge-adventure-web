@@ -38,6 +38,7 @@ is filed.
 | `Gdx2DPixmapNative` copies the whole pixmap out of wasm after every draw | world generation never finished (490k draws on 2800x2800) | emu shadow, lazy copy | R8 |
 | (libGDX 1.14.2) `NinePatch` keeps UVs off patch edges only for linear filtering | lines across nine-patches at fractional scales | shadow `NinePatch` (0.1-texel inset for nearest filtering) | R11 |
 | (TenPatch 5.2.3) `TenPatchDrawable` has no inset at all | dark lines across Adventure buttons | shadow `TenPatchDrawable` | R11 |
+| `Howl.create` makes `new Howl({src: [blobUrl]})` without `html5: true`, and never revokes the Blob URL | every music track is decoded whole: about 62 MB for the 185 s menu track, and Howler caches decoded tracks | not fixed yet; the plan is a shadow class that streams music ([[memory-budget]]) | 2026-10-01 |
 | `gdx-freetype-web` leaks font data (address returned through a copied `int[]`) | FreeType heap exhausted at some screen sizes | emu `FreeType.java` | review |
 
 ## Forge ([[forge]])
