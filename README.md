@@ -101,6 +101,10 @@ about 10 requests per second.
 | `scripts/wfc-golden` | Checks that the world-generation patches produce exactly the same output as upstream Forge. |
 | `scripts/update-forge <ref>` | Moves to a newer Forge. See [`wiki/howto/update-forge.md`](wiki/howto/update-forge.md). |
 
+To continue the work, start with
+[`wiki/howto/pick-up-work.md`](wiki/howto/pick-up-work.md): what to read first, how CI and
+releases work, the test helpers, and the project's conventions.
+
 For background, [`NOTES.md`](NOTES.md) is the lab notebook, with every round of fixes in order
 and the measurements taken along the way. [`PLAN.md`](PLAN.md) is the architecture plan, with
 phases and exit criteria. The [`wiki/`](wiki/index.md) explains how each part works and why it

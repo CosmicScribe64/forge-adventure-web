@@ -4,6 +4,8 @@ Forge's Adventure mode (libGDX), compiled to JavaScript with gdx-teavm and TeaVM
 in a browser. `NOTES.md` is the lab notebook and `PLAN.md` is the plan. Every change to Forge is
 in `patches/forge-web.patch`.
 
+To pick up the work, start with `wiki/howto/pick-up-work.md`.
+
 ## Project wiki (`wiki/`)
 `wiki/` is a maintained, cross-linked knowledge base about this project, kept as an Obsidian
 vault. **Read `wiki/SCHEMA.md` before editing it.** You own the wiki, so keep it current.

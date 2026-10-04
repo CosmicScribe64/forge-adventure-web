@@ -49,6 +49,7 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[open-issues]]: known, unfixed, user-reported, unexplained
 
 ## How-to
+- [[pick-up-work]]: start here to continue the project: what to read, CI and releases, test helpers, conventions
 - [[update-forge]]: move the Forge pin; what breaks and where
 - [[add-missing-api]]: pick the right mechanism for a missing or broken API
 - [[fix-runtime-crash]]: capture the exception, add a SelfTest check, fix it, then do the full build

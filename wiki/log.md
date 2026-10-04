@@ -161,3 +161,11 @@ Next steps:
   [[bug-catalog]], an Upstream section in [[open-issues]] (report the TeaVM and gdx-teavm bugs,
   offer the Forge patches), the non-reproducible card zip, and the startup-share discrepancy in
   `build-webdata`'s docstring.
+
+## [2026-10-04] update | Everything needed to continue is in the repo
+- New [[pick-up-work]] page: what to read first, CI and releases (including the Pages environment
+  rule), test helpers, and the conventions that had lived only in a session's private notes (the
+  project name, plain writing and its checker, root-cause fixes, honesty about the state, noreply
+  commits). README.md and CLAUDE.md point to it.
+- Moved the test helpers from a session scratch folder into the repo: `web/tools/serve-compressed.py`,
+  `web/tools/loader-check.js` and `web/tools/scryfall-requests.js`.
