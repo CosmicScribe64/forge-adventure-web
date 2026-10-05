@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# New-game scenario: serves the built game (scripts/serve-web), loads it with the world seed 1 in
+# headless Chromium, starts a new game, waits for the overworld, and checks that
+#   - the console has no unexpected errors (known harmless ones: web/tools/webtest.py),
+#   - renderer RSS, JS heap and live WebGL texture memory stay under the limits below, measured at
+#     the title screen and at the overworld,
+#   - no file of 1 MB or more was requested twice (same URL and Range).
+# Needs scripts/build-web and scripts/build-webdata first. Exit code 0 only if everything held.
+# Log: out/e2e-newgame.log, screenshots: out/e2e-newgame-menu.png and out/e2e-newgame-world.png.
+# PORT sets the server port (default 8090); SERVER=0 uses a server that is already running there.
+# EXTRA adds webtest arguments (the limits below are for the desktop window, so a phone-size run
+# should expect different texture numbers).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${PORT:-8090}"
+cd "$ROOT"
+mkdir -p out
+
+# Limits in MB. Measured on 2026-10-05 with 1.25 as the factor: desktop 1280x720, headless
+# Chromium with software GL (SwiftShader) in the Playwright container, seed 1, default 700x700
+# world, after commits "Terminate the WFC worker pool", "Drop the JS copy of big pixmaps" and
+# "Size WorldBackground's chunk arrays by chunk count" (the numbers are in wiki/concepts/metrics.md).
+# Raise a limit only after finding out why the number grew, and record the new measurement there.
+# measured at the title screen:  rss 610 MB, heap 256.7 MB, textures 75.4 MB
+# measured at the overworld:     rss 716 MB, heap 278.7 MB, textures 124 MB
+MENU_RSS_MAX=763
+MENU_HEAP_MAX=321
+MENU_TEX_MAX=95
+WORLD_RSS_MAX=895
+WORLD_HEAP_MAX=349
+WORLD_TEX_MAX=155
+
+if [ "${SERVER:-1}" != 0 ]; then
+  docker rm -f forge-web-serve >/dev/null 2>&1 || true
+  PORT="$PORT" "$ROOT/scripts/serve-web" >/dev/null 2>&1 &
+  trap 'docker rm -f forge-web-serve >/dev/null 2>&1 || true' EXIT
+  for _ in $(seq 1 60); do
+    curl -fsS -o /dev/null "http://localhost:$PORT/index.html" 2>/dev/null && break
+    sleep 1
+  done
+fi
+
+# Waiting is on game state and console lines, not fixed delays, except the 10 s after world
+# generation: the WFC workers are terminated 5 s after the last reply and the minimap's JS copy is
+# dropped 5 s after its last use, and the numbers are taken after both.
+# shellcheck disable=SC2086
+"$ROOT/scripts/webtest" --url "http://host.docker.internal:$PORT/index.html?test=1&seed=1" \
+  --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-600}" ${EXTRA:-} \
+  --init-script web/tools/glhook.js --log out/e2e-newgame.log \
+  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; shot out/e2e-newgame-menu.png; measure menu; assert-max menu.rss $MENU_RSS_MAX; assert-max menu.heap $MENU_HEAP_MAX; assert-max menu.tex $MENU_TEX_MAX; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 10; shot out/e2e-newgame-world.png; measure world; assert-max world.rss $WORLD_RSS_MAX; assert-max world.heap $WORLD_HEAP_MAX; assert-max world.tex $WORLD_TEX_MAX; no-repeat-downloads 1; no-errors" \
+  | grep -vE '^\[ *[0-9.]+s\] \[hb\]'

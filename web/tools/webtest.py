@@ -24,6 +24,15 @@ Steps (separated by ';'):
                            condition is truthy (the parsed state is the variable `state`, for
                            example: state.scene == 'StartScene'); exit code 1 after <seconds>
   no-errors                fail the run (exit code 1) if the page has logged an unexpected error
+  measure <name>           garbage-collect, then record renderer RSS, JS heap and (with
+                           --init-script web/tools/glhook.js) live WebGL texture memory, all in MB,
+                           under <name> and print them
+  assert-max <name>.<field> <limit>
+                           fail the run unless a value recorded by `measure` is at most <limit>
+                           (fields: rss, heap, tex, gpu)
+  no-repeat-downloads [<min MB>]
+                           fail the run if a file of <min MB> (default 1) or more was requested
+                           more than once with the same URL and Range header
   snapshot <path>          write a V8 heap snapshot (.heapsnapshot, open in DevTools or parse it)
   heap <path>              garbage-collect, then write the JS heap totals and (with --heap-sampling)
                            which functions allocated the memory still alive, to <path>
@@ -238,6 +247,7 @@ def main():
     crashed = []
     errors = []  # unexpected console errors and page errors, as log lines
     allowed_seen = {}
+    measured = {}  # `measure` results by name
 
     def fail(message):
         emit(f"[{time.time() - start:7.1f}s] [FAIL] {message}", echo=True)
@@ -324,6 +334,17 @@ def main():
         if args.init_script:
             page.add_init_script(path=args.init_script)
         page.on("console", on_console)
+        requests = {}  # (url, range header) -> [response or None, ...], in request order
+
+        def on_request_finished(request):
+            try:
+                response = request.response()
+                key = (request.url, request.headers.get("range", ""))
+                requests.setdefault(key, []).append(response)
+            except Exception:
+                pass
+
+        page.on("requestfinished", on_request_finished)
         page.on("crash", lambda *_: crashed.append(True))
         if args.latency or args.mbps:
             net = page.context.new_cdp_session(page)
@@ -544,6 +565,48 @@ def main():
                     if not ok:
                         fail(f"until-state {cond}: not reached in {limit}s; last state: {json.dumps(state)[:300]}")
                     print(f"until-state '{cond}': reached after {time.time() - (end - float(limit)):.0f}s", flush=True)
+                elif cmd == "measure":
+                    cdp = heap_cdp or page.context.new_cdp_session(page)
+                    cdp.send("HeapProfiler.collectGarbage")
+                    usage = cdp.send("Runtime.getHeapUsage")
+                    stats = chromium_stats()
+                    gl = page.evaluate("() => window.__gl ? window.__gl.summary(0) : null")
+                    measured[parts[1]] = {
+                        "rss": round(stats.get("renderer", (0, 0))[0]),
+                        "gpu": round(stats.get("gpu", (0, 0))[0]),
+                        "heap": round(usage["usedSize"] / 1048576, 1),
+                        "tex": round(gl["texMB"], 1) if gl else None,
+                    }
+                    print(f"measure {parts[1]}: renderer rss {measured[parts[1]]['rss']} MB, js heap "
+                          f"{measured[parts[1]]['heap']} MB, texture {measured[parts[1]]['tex']} MB, "
+                          f"gpu rss {measured[parts[1]]['gpu']} MB", flush=True)
+                elif cmd == "assert-max":
+                    name, field = parts[1].split(".")
+                    limit = float(parts[2])
+                    value = measured.get(name, {}).get(field)
+                    if value is None:
+                        fail(f"assert-max {parts[1]}: no such measurement (run `measure {name}` first, "
+                             "and give --init-script web/tools/glhook.js for tex)")
+                    if value > limit:
+                        fail(f"assert-max {parts[1]}: {value} MB is above the limit {limit:g} MB")
+                    print(f"assert-max ok: {parts[1]} {value} <= {limit:g} MB", flush=True)
+                elif cmd == "no-repeat-downloads":
+                    min_bytes = float(parts[1] if len(parts) > 1 else 1) * 1048576
+                    repeated = []
+                    for (url, rng), responses in requests.items():
+                        if len(responses) < 2 or url.startswith(("data:", "blob:")):
+                            continue
+                        size = 0
+                        for response in responses:
+                            try:
+                                size = max(size, len(response.body()))  # decoded size
+                            except Exception:
+                                size = max(size, int((response.headers.get("content-length") or 0)))
+                        if size >= min_bytes:
+                            repeated.append(f"{url.rsplit('/', 1)[-1][:80]} {rng} x{len(responses)} ({size / 1048576:.1f} MB)")
+                    if repeated:
+                        fail("downloaded more than once: " + "; ".join(repeated))
+                    print(f"no-repeat-downloads ok ({len(requests)} distinct requests)", flush=True)
                 elif cmd == "no-errors":
                     if errors:
                         fail(f"{len(errors)} unexpected console/page error(s)")
