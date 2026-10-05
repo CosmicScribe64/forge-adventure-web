@@ -1,4 +1,5 @@
-# Checks every push to main and every pull request: the Forge patch still applies, Forge and the
+# Checks every push to main and every pull request: the unit tests pass (scripts/unit-test, about a
+# minute, before anything long starts), the Forge patch still applies, Forge and the
 # game still compile, the SelfTest checks pass in headless Chromium, and the built game boots to
 # its title screen without console errors (scripts/e2e-boot). These are readable builds. The
 # minified build (TEAVM_OBFUSCATED=true) costs another 5 minutes for its own SelfTest compile, so
@@ -30,11 +31,17 @@ jobs:
       - name: Check the wiki
         run: wiki/tools/lint
 
+      - name: Run the unit tests
+        run: scripts/unit-test
+
       - name: Clone Forge and apply the patch
         run: scripts/update-forge
 
       - name: Build Forge's jars
         run: scripts/build-forge-libs
+
+      - name: Run Forge's own tests
+        run: scripts/unit-test forge
 
       - name: Prepare the game data
         run: scripts/build-webdata
@@ -47,6 +54,16 @@ jobs:
 
       - name: Boot smoke test
         run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
+
+      - name: Keep the unit test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-tests
+          path: |
+            web/build/reports/tests/unitTest
+            out/forge-tests.log
+          if-no-files-found: ignore
 
       - name: Keep the boot smoke test's log and screenshot
         if: failure()

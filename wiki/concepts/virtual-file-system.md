@@ -17,6 +17,7 @@ file system underneath all of these.
 | Class | Role |
 |---|---|
 | `WebFileSystem` | the `java.io` file system. Game data is mounted **read-through** from a manifest (`path\tsize[\turl]` per line). Listings and sizes come from the manifest, and contents download on first read. Runtime writes stay in memory. Resolves relative `java.nio` paths (`./res`, Adventure's `Config.resPath`) against the user dir. |
+| `FileStore` | the browser-free part of `WebFileSystem` (tree, manifest, packs, downloads, trim policy), behind a `Host` interface for downloads and timers so [[unit-tests]] run it on the JVM. |
 | `WebVirtualFile`, `Node` | file and tree nodes |
 | `Http` | **synchronous** GET (sync XHR, binary via the `x-user-defined` charset trick). It is used because the UI thread can't be suspended. It first takes bodies from `window.forgePrefetch` (see [[startup-and-loading]]). |
 | `UserDataStore` | persists the user data folder (prefs, Adventure saves, decks) to **IndexedDB** via `window.forgeUserStore` in `index.html`. The page reads the stored files before the game starts, `restore()` puts them back, and later writes and deletes are mirrored in the background. |
@@ -65,4 +66,4 @@ Async fetch with `@Async` suspension instead of sync XHR, so prefetching becomes
 service worker that caches app.js, the packs and res files. See [[plan-phases]].
 
 ## See also
-[[saves]] · [[selftest]] (checks: cardsfolder.zip, packs, `File.list` filter, `./res` resolution)
+[[saves]] · [[unit-tests]] · [[selftest]] (checks: cardsfolder.zip, packs, `File.list` filter, `./res` resolution)

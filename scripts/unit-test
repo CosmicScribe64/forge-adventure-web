@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Fast tests that run on the plain JVM and Python, with no browser and no TeaVM compile.
+#   scripts/unit-test            the Python tests and the web module's JUnit tests (about 1 minute)
+#   scripts/unit-test forge      Forge's own TestNG tests (needs scripts/update-forge first)
+#   scripts/unit-test all        everything above
+# The web tests are in web/src/unit (Gradle task unitTest); the Python tests are web/tools/test_*.py.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WHAT="${1:-fast}"
+case "$WHAT" in fast|forge|all) ;; *) echo "usage: $0 [fast|forge|all]" >&2; exit 2;; esac
+
+if [ "$WHAT" != forge ]; then
+  python3 -m unittest discover -s "$ROOT/web/tools" -p 'test_*.py'
+  DOCK_CWD=web "$ROOT/scripts/dock" 'gradle --console=plain --quiet unitTest' \
+    || { echo "unit tests failed; reports are in web/build/reports/tests/unitTest" >&2; exit 1; }
+  echo "web unit tests passed ($(grep -ho 'tests="[0-9]*"' "$ROOT"/web/build/test-results/unitTest/*.xml | grep -o '[0-9]*' | paste -sd+ | bc) tests)"
+fi
+
+if [ "$WHAT" != fast ]; then
+  # forge-gui and what it needs (core, game, ai): their 11 tests, 3 in forge-game and 8 in forge-gui.
+  mkdir -p "$ROOT/out"
+  "$ROOT/scripts/dock" 'cd forge && mvn -B -T 4 -Dcheckstyle.skip -pl forge-gui -am test' > "$ROOT/out/forge-tests.log" 2>&1 \
+    || { grep -E 'Tests run:|FAIL|ERROR' "$ROOT/out/forge-tests.log" | head -30; exit 1; }
+  grep -E '^\[INFO\] Tests run: [0-9]+, F.*[0-9]$' "$ROOT/out/forge-tests.log" || true
+  echo "Forge tests passed"
+fi

@@ -336,3 +336,10 @@ Next steps:
   a dungeon and a duel checked after the fix. Added `scripts/e2e-cycle` (232 s). e2e-boot, e2e-newgame and
   SelfTest (39/39) pass.
 - Pages touched: [[memory-budget]], [[bug-catalog]], [[open-issues]], [[webtest-harness]].
+
+## [2026-10-05] update | Unit tests on the JVM and in Python
+- Split `FileStore` out of `WebFileSystem` (behind a `Host` interface for downloads, the clock and
+  timers), added 27 JUnit tests (`web/src/unit`), 15 Python tests for `latin1-js.py`, and
+  `scripts/unit-test`. CI runs them before the long steps, and Forge's 11 TestNG tests after
+  `build-forge-libs`. New page [[unit-tests]]; touched [[virtual-file-system]], [[open-issues]],
+  [[selftest]], [[code-map]], [[index]].

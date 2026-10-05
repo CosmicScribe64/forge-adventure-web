@@ -84,7 +84,8 @@ See [[webtest-harness]].
   the UI thread in a trial (`until-state` waits for the loading screen to go). Find out why.
 - [ ] The boot smoke test's allowlist hides four known error lines; remove an entry when its cause
   is fixed ([[webtest-harness]]).
-- [ ] Other test-plan steps (JVM unit tests, game scenarios, memory thresholds) are not started.
+- [x] JVM unit tests for the file store and `latin1-js.py`, and Forge's own tests, run in CI ([[unit-tests]]).
+- [ ] Other test-plan steps (game scenarios, memory thresholds) are not started. `WebVirtualFile`, `UserDataStore` and `Http` have no JVM tests.
 
 ## Found 2026-10-05, not fixed
 - [x] The wasm pixmap heap grew by 31 MB per new game and textures by 11.7 MB (the old `biomeImage`

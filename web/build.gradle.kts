@@ -30,6 +30,30 @@ dependencies {
     compileOnly("com.jcraft:jzlib:1.1.3")
 }
 
+// Unit tests that run on the plain JVM (scripts/unit-test): only the browser-free file system logic
+// is compiled for them, so they need neither Forge's jars nor TeaVM. Run: gradle unitTest
+val unit = sourceSets.create("unit") {
+    java.srcDir("src/main/java")
+    java.srcDir("src/unit/java")
+}
+tasks.named<JavaCompile>("compileUnitJava") {
+    include("forgeweb/fs/FileStore.java", "forgeweb/fs/Node.java", "forgeweb/fs/FakeHost.java", "forgeweb/fs/*Test.java")
+}
+dependencies {
+    "unitImplementation"(platform("org.junit:junit-bom:5.11.4"))
+    "unitImplementation"("org.junit.jupiter:junit-jupiter-api")
+    "unitRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine")
+    "unitRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+}
+tasks.register<Test>("unitTest") {
+    description = "Runs the JVM unit tests in src/unit."
+    group = "verification"
+    testClassesDirs = unit.output.classesDirs
+    classpath = unit.runtimeClasspath
+    useJUnitPlatform()
+    testLogging { events("failed"); showStandardStreams = false }
+}
+
 val worker = System.getenv("WORKER") == "true"
 
 gdxTeaVM {

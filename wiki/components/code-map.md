@@ -20,7 +20,7 @@ This page shows where the project's own code lives and which concept each part s
 | | `ByName`, `SerialHooks` (owns the hook class list; warns if a class has none) | [[reflection-on-teavm]] |
 | | `StringCompat` (case-insensitive compares, R11) | [[startup-and-loading]] |
 | | `ReadOnlySortedSet` | |
-| `forgeweb/fs/` | `WebFileSystem`, `WebVirtualFile`, `Node`, `Http`, `UserDataStore` | [[virtual-file-system]] |
+| `forgeweb/fs/` | `WebFileSystem`, `FileStore`, `WebVirtualFile`, `Node`, `Http`, `UserDataStore` | [[virtual-file-system]] |
 | `forgeweb/teavm/` | compiler side: `ForgeWebPlugin` (registers the rest), `CallRedirector`, `Unsupported`, `WebReflection`, `ReachReport`, `ReflectAudit` | [[web-layer-mechanisms]], [[classic-code-pruning]] |
 | `forgeweb/ForgeWebSubstitutionPolicy` | class substitution | [[web-layer-mechanisms]] |
 | `forgeweb/shim/` | T-prefixed XML DOM/transform/SAX (`TMiniDom`, `TMiniXml`), `TFontUIResource` | [[web-layer-mechanisms]] |

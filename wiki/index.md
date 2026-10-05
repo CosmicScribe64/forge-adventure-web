@@ -21,6 +21,7 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[build-pipeline]]: Docker, scripts, TeaVM environment variables, the 7.7 GB memory ceiling
 - [[classic-code-pruning]]: ReachReport and Unsupported, to cut Classic code from app.js
 - [[selftest]]: the 25 s check suite; one check per real bug
+- [[unit-tests]]: JVM and Python tests (file store, latin1-js, Forge's own), run by scripts/unit-test and CI
 - [[webtest-harness]]: webtest.py steps, the in-game WebTest harness, play scripts, gaps
 
 ## Components (our code)

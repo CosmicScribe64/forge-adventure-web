@@ -69,4 +69,4 @@ The first minified run (before the fixes) passed 35 and failed four:
 `pages.yml` runs this check before a release. `ci.yml` does not, because the extra compile costs 5 min.
 
 ## See also
-[[webtest-harness]] (the in-game counterpart)
+[[webtest-harness]] (the in-game counterpart) · [[unit-tests]] (the JVM tests that need no browser)
