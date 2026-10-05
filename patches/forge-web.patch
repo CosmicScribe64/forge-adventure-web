@@ -1,3 +1,179 @@
+diff --git a/forge-core/src/main/java/forge/card/CardChangedType.java b/forge-core/src/main/java/forge/card/CardChangedType.java
+index 24f8fc75..e6d3cad0 100644
+--- a/forge-core/src/main/java/forge/card/CardChangedType.java
++++ b/forge-core/src/main/java/forge/card/CardChangedType.java
+@@ -96,7 +96,7 @@ public record CardChangedType(CardTypeView addType, CardTypeView removeType, boo
+         }
+         // remove specific creature types from all creature types
+         if (removeType() != null && newType.allCreatureTypes) {
+-            newType.excludedCreatureSubtypes.addAll(Lists.newArrayList(IterableUtil.filter(removeType().getSubtypes(), CardType::isACreatureType)));
++            newType.writableExcludedCreatureSubtypes().addAll(Lists.newArrayList(IterableUtil.filter(removeType().getSubtypes(), CardType::isACreatureType)));
+         }
+         return newType;
+     }
+diff --git a/forge-core/src/main/java/forge/card/CardRules.java b/forge-core/src/main/java/forge/card/CardRules.java
+index 11ba139d..a3e0c9e2 100644
+--- a/forge-core/src/main/java/forge/card/CardRules.java
++++ b/forge-core/src/main/java/forge/card/CardRules.java
+@@ -42,7 +42,8 @@ public final class CardRules implements ICardCharacteristics {
+     private CardSplitType splitType;
+     private ICardFace mainPart;
+     private ICardFace otherPart;
+-    private Map<CardStateName, ICardFace> specializedParts = Maps.newHashMap();
++    // Only Specialize cards have parts, so the map is a shared empty one until then.
++    private Map<CardStateName, ICardFace> specializedParts = Collections.emptyMap();
+     private List<ICardFace> allFaces;
+ 
+     private CardAiHints aiHints;
+@@ -63,6 +64,7 @@ public final class CardRules implements ICardCharacteristics {
+         otherPart = faces[1];
+ 
+         if (CardSplitType.Specialize.equals(splitType)) {
++            specializedParts = Maps.newHashMap();
+             specializedParts.put(CardStateName.SpecializeW, faces[2]);
+             specializedParts.put(CardStateName.SpecializeU, faces[3]);
+             specializedParts.put(CardStateName.SpecializeB, faces[4]);
+@@ -89,7 +91,7 @@ public final class CardRules implements ICardCharacteristics {
+         splitType = newRules.splitType;
+         mainPart = newRules.mainPart;
+         otherPart = newRules.otherPart;
+-        specializedParts = Maps.newHashMap(newRules.specializedParts);
++        specializedParts = newRules.specializedParts.isEmpty() ? Collections.emptyMap() : Maps.newHashMap(newRules.specializedParts);
+         allFaces = newRules.allFaces;
+         aiHints = newRules.aiHints;
+         colorIdentity = newRules.colorIdentity;
+diff --git a/forge-core/src/main/java/forge/card/CardType.java b/forge-core/src/main/java/forge/card/CardType.java
+index 7c6a122c..ac16728e 100644
+--- a/forge-core/src/main/java/forge/card/CardType.java
++++ b/forge-core/src/main/java/forge/card/CardType.java
+@@ -144,10 +144,12 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+     }
+ 
+     protected final Set<CoreType> coreTypes = EnumSet.noneOf(CoreType.class);
+-    protected final Set<Supertype> supertypes = EnumSet.noneOf(Supertype.class);
+-    protected final Set<String> subtypes = Sets.newLinkedHashSet();
++    // The sets below are shared empty sets until something is added (see the writable methods), because
++    // a database holds tens of thousands of types and most have no supertype or no excluded subtypes.
++    protected Set<Supertype> supertypes = Collections.emptySet();
++    protected Set<String> subtypes = Collections.emptySet();
+     protected boolean allCreatureTypes = false;
+-    protected final Set<String> excludedCreatureSubtypes = Sets.newLinkedHashSet();
++    protected Set<String> excludedCreatureSubtypes = Collections.emptySet();
+ 
+     private boolean incomplete = false;
+     private transient String calculatedType = null;
+@@ -162,12 +164,33 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+     public CardType(final CardType from0) {
+         addAll(from0);
+         allCreatureTypes = from0.allCreatureTypes;
+-        excludedCreatureSubtypes.addAll(from0.excludedCreatureSubtypes);
++        if (!from0.excludedCreatureSubtypes.isEmpty()) {
++            writableExcludedCreatureSubtypes().addAll(from0.excludedCreatureSubtypes);
++        }
+     }
+     public CardType(final CardTypeView from0) {
+         addAll(from0);
+     }
+ 
++    Set<Supertype> writableSupertypes() {
++        if (supertypes == Collections.<Supertype>emptySet()) {
++            supertypes = EnumSet.noneOf(Supertype.class);
++        }
++        return supertypes;
++    }
++    Set<String> writableSubtypes() {
++        if (subtypes == Collections.<String>emptySet()) {
++            subtypes = Sets.newLinkedHashSet();
++        }
++        return subtypes;
++    }
++    Set<String> writableExcludedCreatureSubtypes() {
++        if (excludedCreatureSubtypes == Collections.<String>emptySet()) {
++            excludedCreatureSubtypes = Sets.newLinkedHashSet();
++        }
++        return excludedCreatureSubtypes;
++    }
++
+     public boolean add(final String t) {
+         boolean changed;
+         final CoreType ct = CoreType.getEnum(t);
+@@ -176,10 +199,10 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+         } else {
+             final Supertype st = Supertype.getEnum(t);
+             if (st != null) {
+-                changed = supertypes.add(st);
++                changed = writableSupertypes().add(st);
+             } else {
+                 // If not recognized by super- and core- this must be subtype
+-                changed = subtypes.add(t);
++                changed = writableSubtypes().add(t);
+             }
+         }
+         if (changed) {
+@@ -204,16 +227,16 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+     public boolean addAll(final CardType type) {
+         boolean changed = false;
+         if (coreTypes.addAll(type.coreTypes)) { changed = true; }
+-        if (supertypes.addAll(type.supertypes)) { changed = true; }
+-        if (subtypes.addAll(type.subtypes)) { changed = true; }
++        if (!type.supertypes.isEmpty() && writableSupertypes().addAll(type.supertypes)) { changed = true; }
++        if (!type.subtypes.isEmpty() && writableSubtypes().addAll(type.subtypes)) { changed = true; }
+         sanisfySubtypes();
+         return changed;
+     }
+     public boolean addAll(final CardTypeView type) {
+         boolean changed = false;
+         if (Iterables.addAll(coreTypes, type.getCoreTypes())) { changed = true; }
+-        if (Iterables.addAll(supertypes, type.getSupertypes())) { changed = true; }
+-        if (Iterables.addAll(subtypes, type.getSubtypes())) { changed = true; }
++        if (!type.getSupertypes().isEmpty() && Iterables.addAll(writableSupertypes(), type.getSupertypes())) { changed = true; }
++        if (!type.getSubtypes().isEmpty() && Iterables.addAll(writableSubtypes(), type.getSubtypes())) { changed = true; }
+         sanisfySubtypes();
+         return changed;
+     }
+@@ -282,7 +305,7 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+             changed = true;
+         }
+         allCreatureTypes = false;
+-        subtypes.addAll(ctypes);
++        writableSubtypes().addAll(ctypes);
+         return changed;
+     }
+ 
+@@ -841,12 +864,16 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
+ 
+     public static CardType combine(final CardType a, final CardType b) {
+         final CardType result = new CardType(false);
+-        result.supertypes.addAll(a.supertypes);
+-        result.supertypes.addAll(b.supertypes);
++        if (!a.supertypes.isEmpty() || !b.supertypes.isEmpty()) {
++            result.writableSupertypes().addAll(a.supertypes);
++            result.writableSupertypes().addAll(b.supertypes);
++        }
+         result.coreTypes.addAll(a.coreTypes);
+         result.coreTypes.addAll(b.coreTypes);
+-        result.subtypes.addAll(a.subtypes);
+-        result.subtypes.addAll(b.subtypes);
++        if (!a.subtypes.isEmpty() || !b.subtypes.isEmpty()) {
++            result.writableSubtypes().addAll(a.subtypes);
++            result.writableSubtypes().addAll(b.subtypes);
++        }
+         return result;
+     }
+ 
+diff --git a/forge-core/src/main/java/forge/card/WordChangedType.java b/forge-core/src/main/java/forge/card/WordChangedType.java
+index 9652f359..7bb08fca 100644
+--- a/forge-core/src/main/java/forge/card/WordChangedType.java
++++ b/forge-core/src/main/java/forge/card/WordChangedType.java
+@@ -6,7 +6,7 @@ public record WordChangedType(String oldWord, String newWord) implements ICardCh
+     public CardType applyChanges(CardType newType) {
+         if (newType.hasStringType(oldWord)) {
+             newType.subtypes.remove(oldWord);
+-            newType.subtypes.add(newWord);
++            newType.writableSubtypes().add(newWord);
+         }
+         return newType;
+     }
 diff --git a/forge-core/src/main/java/forge/util/FileUtil.java b/forge-core/src/main/java/forge/util/FileUtil.java
 index 6463874a..00782663 100644
 --- a/forge-core/src/main/java/forge/util/FileUtil.java

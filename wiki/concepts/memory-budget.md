@@ -375,9 +375,38 @@ The card database in total is about 190 MB of the 277 MB.
 Two facts about the waste. First, a `CardType` costs about 900 bytes whatever it holds: an empty
 `excludedCreatureSubtypes` set (7.5 MB in all), mostly empty supertypes (6.0 MB), and a subtypes set
 (11.7 MB) even for lands and spells. Creating those sets on first add is a small change inside
-`CardType` that could go upstream; it was not made (see below), and an estimate is 15 to 20 MB of heap.
+`CardType` that could go upstream; it was made on 2026-10-05 (see "Lazy `CardType` sets and
+`specializedParts`" below).
 Second, identical strings are not the problem: 479,000 duplicate copies waste only 12.9 MB
 (`SVar:DBCleanup` lines, "Human", "Flying" and the like), so interning would save under 5 percent.
+
+**Lazy `CardType` sets and `specializedParts` (done 2026-10-05).** In `patches/forge-web.patch`,
+`CardType` now starts its supertypes, subtypes and excluded creature subtypes as the shared
+`Collections.emptySet()` and creates the real set in `writableSupertypes()`, `writableSubtypes()` and
+`writableExcludedCreatureSubtypes()` on the first add. `CardRules.specializedParts` is likewise a shared
+empty map until a Specialize card fills it. The change does not depend on `forge.web` and behaves the
+same on the desktop, so it is written to go upstream as it is. The core types stay an `EnumSet`, as
+they are present on nearly every card.
+
+Measured on a clean tree, desktop, seed 1, JS heap used: menu 277.4 to 256.7 MB, overworld 304.4 to
+283.5 MB, phone-size menu 276.8 to 256.4 MB, about 21 MB each (the estimate from the snapshot was
+38 MB; the rest of the 900 bytes per `CardType` is the object and its `coreTypes` set, which stay).
+Renderer memory fell by 14 MB at the desktop menu (627 to 613 MB) and 12 MB on the overworld (892 to
+881 MB); the GPU figures moved within run-to-run noise.
+
+How the mutators were checked: every writer of the three fields goes through a `writable` method
+(`add`, both `addAll` overloads, `setCreatureTypes`, `combine`, the copy constructor,
+`CardChangedType.applyChanges` and `WordChangedType.applyChanges`). Remove-style calls (`remove`,
+`removeAll`, `removeIf`, `clear`) are left alone, because they are no-ops on an empty set. No caller
+outside `CardType` mutates what `getSupertypes()`, `getSubtypes()` or `getExcludedCreatureSubTypes()`
+returns: a search over all modules found only reads (`forEach(types::add)` copies out of it, and the
+two `(Set<String>)` casts in `AdvancedSearch` are only read). The one caller of
+`CardRules.getSpecializeParts()` in each of `CardUtil` and `CardFactory` only iterates it. Forge has
+no `forge-core` unit tests, and the `forge-gui-desktop` tests could not be resolved offline here, so a
+throwaway program covered the empty-set cases (parse, copy, add after clear, `combine`,
+`removeAll`, `CardChangedType`); it passed. In the browser a new game, an Adept wizard dialog, a duel
+to turn 2 and the deck editor list with its colour filter and Advanced Search dialog ran with no new
+errors, and the selftest passed.
 
 **Why lazy card loading is off on mobile, and whether it applies here.** `FModel` sets
 `loadCardsLazily` to false when `GuiBase.isMobile()`, with the comment "unless proven to work on
@@ -414,7 +443,7 @@ effects, SVars, keywords) would be parsed on first use from the zip. Those are a
 277 MB heap, and the zip held back costs about 34 MB (27.5 MB data and 6.5 MB entries), so the net saving
 is small. The big gain of the experiment came from not keeping `CardType`, SVar maps and mana costs for
 cards that are never played, and a slim index would keep type and cost. Estimated net: 20 to 40 MB for a
-medium-sized change to `CardFace` and `CardRules`. Cheaper first: the `CardType` change above.
+medium-sized change to `CardFace` and `CardRules`. Cheaper first: the `CardType` change, now done.
 
 ## Findings for phones (2026-10-01)
 
@@ -447,8 +476,8 @@ Next steps, in order:
    escaping non-Latin-1 characters, which saved 72 MB at the menu.
 5. Reduce GPU textures (see "GPU memory" above): lazy large fonts, duel-only sprite sheets,
    no mipmaps. Up to about 200 MB of the 296 MB at the menu.
-6. Shrink the card database itself: first the `CardType` empty sets, then the empty `specializedParts`
-   maps, then a slim card index with script details read on first use (see "JS heap by owner" above).
+6. Shrink the card database itself: the `CardType` empty sets and the empty `specializedParts`
+   maps are done (about 21 MB); next a slim card index with script details read on first use (see "JS heap by owner" above).
    Forge's lazy loading can't be used as it is.
 7. Test on a real iPhone, or in WebKit through Playwright, at each step.
 - Release the minimap pixmap after upload.

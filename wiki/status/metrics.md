@@ -21,7 +21,7 @@ headless Chromium with software GL (SwiftShader) and world seed 1. Measure with 
 | Game data download | 23 MB (card zip 15.8, manifest 1.3) | **7.5 MB** gzipped (R11), before the startup pack | [[virtual-file-system]] |
 | Blocking requests before title | 144 sync XHRs | 0 from `res/` in the startup set (startup pack, R11) | [[virtual-file-system]] |
 | World generation | 44-70 s, UI frozen | **6.6 s**, page free (workers) | [[world-generation]] |
-| JS heap at the menu and world | 313 MB at the world | 277.7 MB at the menu, 304.5 MB at the world (2026-10-05, desktop, build bf3b5ad). The card database is about 190 MB of it; lazy loading forced on would give 129 and 156 MB but breaks rewards and enemy decks | [[memory-budget]] |
+| JS heap at the menu and world | 313 MB at the world | **256.7 MB at the menu, 283.5 MB at the world** (2026-10-05, desktop, after the lazy `CardType` sets; 277.4 and 304.4 MB before). The card database is about 170 MB of it; lazy loading forced on would give 129 and 156 MB but breaks rewards and enemy decks | [[memory-budget]] |
 | ArrayBuffers at world | 627 MB (libGDX wasm heap 331 MB) | wasm heap 133 MB | [[memory-budget]] |
 | Live pixmaps at title | 246 MB | 7 MB | [[memory-budget]] |
 | Renderer process at world | 1.46 GB | about 0.90 GB (2026-10-05, fonts on first use, music streamed, one-byte `app.js` source and card zip and packs dropped after use; 0.96 GB before the last change) | [[memory-budget]] |

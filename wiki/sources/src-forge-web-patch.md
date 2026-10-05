@@ -12,7 +12,7 @@ Every change to [[forge|Forge]] source, as one `git diff` against the commit pin
 `scripts/update-forge` applies it (see [[update-forge]]). To regenerate it, run
 `git -C forge diff > patches/forge-web.patch`, after `git -C forge add -N` for any new files.
 
-## Files touched (26, as of 2026-10-01), grouped by purpose
+## Files touched (33, as of 2026-10-05), grouped by purpose
 
 | Purpose | Files | Page |
 |---|---|---|
@@ -23,6 +23,7 @@ Every change to [[forge|Forge]] source, as one `git diff` against the commit pin
 | Saves | `AdventurePlayer` (colorIdentity saved as a byte, read as a string), `SaveLoadScene` (skips an unreadable save), `ScreenUtil` (thumbnails follow the screen size, R11) | [[saves]] |
 | Screen shapes | `Scene`, `UIScene`, `HudScene`, `TileMapScene`, `RewardScene`, `GameHUD`, `GameStage`, `RewardActor`, new `ViewLayout`, `TransitionScreen` (VS names fit, R11) | [[screen-layout]] |
 | Texture seams (R11) | `TemplateTmxMapLoader` (0.1-texel inset on tile regions) | [[screen-layout]] |
+| Card database memory (upstreamable, behaviour-neutral) | `CardType`, `CardRules`, `CardChangedType`, `WordChangedType` (collections created on first add) | [[memory-budget]] |
 | Startup fonts (R11) | `FSkinFont` (keeps the generated font on the web, no PNG round trip) | [[startup-and-loading]] |
 
 > [!note] Superseded

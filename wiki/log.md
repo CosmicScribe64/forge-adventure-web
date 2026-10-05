@@ -272,3 +272,11 @@ Next steps:
   Forge turns it off on mobile still holds: the adventure reward code enumerates the whole database.
   The experiment was reverted; no game code was changed.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].
+
+## [2026-10-05] ingest | Lazy CardType sets and specializedParts (patch, memory plan)
+- `patches/forge-web.patch` now makes `CardType` create its supertype, subtype and excluded-subtype
+  sets on first add, and `CardRules` create `specializedParts` only for Specialize cards. Menu JS
+  heap 277.4 to 256.7 MB, overworld 304.4 to 283.5 MB, phone-size menu 276.8 to 256.4 MB. Mutators
+  and getter callers were checked by search; a throwaway program and a browser run (new game, duel,
+  deck editor) passed. Forge has no `forge-core` tests.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[src-forge-web-patch]].

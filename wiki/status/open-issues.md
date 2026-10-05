@@ -28,7 +28,8 @@ the change.
   database (JS heap 277 MB, of which about 190 MB is cards). Forge's lazy card loading would save
   about 150 MB but leaves the database empty for the adventure reward and enemy code, which
   enumerates it, so it needs a slim card index first ([[memory-budget]], "JS heap by owner").
-  The cheap first step is `CardType` creating its sets on first add (15 to 20 MB estimated).
+  The cheap first step, `CardType` and `CardRules` creating their collections on first add, is done
+  (21 MB, 2026-10-05).
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
