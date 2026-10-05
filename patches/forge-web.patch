@@ -691,6 +691,27 @@ index eb6d0ddb..c755e946 100644
  
          onActing(delta);
      }
+diff --git a/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java b/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
+index 98acb1a1..ccc472d4 100644
+--- a/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
++++ b/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
+@@ -163,10 +163,13 @@ public class WorldBackground extends Actor {
+                     if (texture != null)
+                         texture.dispose();
+         }
+-        chunks = new Texture[WorldSave.getCurrentSave().getWorld().getWidthInTiles()][WorldSave.getCurrentSave().getWorld().getHeightInTiles()];
+-        Array[][] createChunks = new Array[WorldSave.getCurrentSave().getWorld().getWidthInTiles()][WorldSave.getCurrentSave().getWorld().getHeightInTiles()];
++        // Indexed by chunk, not by tile: one slot per chunk covering the world (the last one may be partial).
++        int chunksX = (WorldSave.getCurrentSave().getWorld().getWidthInTiles() + chunkSize - 1) / chunkSize;
++        int chunksY = (WorldSave.getCurrentSave().getWorld().getHeightInTiles() + chunkSize - 1) / chunkSize;
++        chunks = new Texture[chunksX][chunksY];
++        Array[][] createChunks = new Array[chunksX][chunksY];
+         chunksSprites = createChunks;
+-        Array[][] createSprites = new Array[WorldSave.getCurrentSave().getWorld().getWidthInTiles()][WorldSave.getCurrentSave().getWorld().getHeightInTiles()];
++        Array[][] createSprites = new Array[chunksX][chunksY];
+         chunksSpritesBackground = createSprites;
+ 
+ 
 diff --git a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java b/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
 index e1d6824b..ef37e7f3 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
