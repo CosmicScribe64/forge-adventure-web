@@ -235,3 +235,14 @@ Next steps:
   sheets), 349 MB at the overworld, buffers negligible. Wrote down reductions with estimates and
   why the software GL figure is only partly a fair stand-in for a phone.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[webtest-harness]].
+
+## [2026-10-05] fix | Font sizes made on first use (memory plan, GPU step 1)
+- Read [[memory-budget]] (GPU memory) and the phone item in [[open-issues]], then
+  `FSkinFont` and its callers. `preloadAll` only avoids a pause at first use: `_get` already makes
+  a missing size, so `patches/forge-web.patch` makes it return early when `forge.web` is set
+  (desktop Forge keeps the old behaviour).
+- Logged the sizes created in play (menu, overworld, town, duel; desktop and phone size):
+  17 sizes, 8 MB. At the menu, live textures went from 296 MB in 129 to 173.5 MB in 73; GPU
+  process 456 to 334 MB (desktop), 435 to 306 MB (phone size); renderer 669 to 659 and 667 to 663
+  MB; the "Loading fonts" startup stage 3.2 to 0 s.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].

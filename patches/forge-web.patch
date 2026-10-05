@@ -1150,10 +1150,24 @@ index 47066dec..1a1a3e34 100644
              WorldStage.getInstance().clearCache();
  
 diff --git a/forge-gui-mobile/src/forge/assets/FSkinFont.java b/forge-gui-mobile/src/forge/assets/FSkinFont.java
-index 7bbecf2a..eca1de0c 100644
+index 7bbecf2a..a5cd7f2a 100644
 --- a/forge-gui-mobile/src/forge/assets/FSkinFont.java
 +++ b/forge-gui-mobile/src/forge/assets/FSkinFont.java
-@@ -430,6 +430,20 @@ public class FSkinFont {
+@@ -77,6 +77,13 @@ public class FSkinFont {
+     public static void preloadAll(String language) {
+         //todo:really check the language glyph is a lot
+         MAX_FONT_SIZE = (Lang.initInstance(language).getFontFile() != null) ? MAX_FONT_SIZE_MANY_GLYPHS : MAX_FONT_SIZE_LESS_GLYPHS;
++        if (Boolean.getBoolean("forge.web")) {
++            // A browser tab has little memory to give. Every size from 8 to 72 is 125 MB of glyph
++            // pages (the 23 sizes of 50 and up are 1024x1024 each), yet a screen uses a handful
++            // of sizes. _get() makes a size on first use (about 0.1 s for one on the UI thread),
++            // and the sizes found while measuring the menu, map, town and a duel are 8 MB.
++            return;
++        }
+         for (int size = MIN_FONT_SIZE; size <= MAX_FONT_SIZE; size++) {
+             _get(size);
+         }
+@@ -430,6 +437,20 @@ public class FSkinFont {
                      if (Forge.isDisposed || Forge.getAssets() == null || Forge.getAssets().manager() == null) {
                          return;
                      }

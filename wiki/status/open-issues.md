@@ -20,11 +20,12 @@ the change.
   about 55 MB at the menu) and storing the `app.js` source as one-byte text (2026-10-05, 74 MB at
   the phone-size menu) and dropping the card zip and the packs after use (2026-10-05, 36 MB at the
   phone-size menu, 41 MB at the overworld). The phone-size
-  menu is now 667 MB in the renderer plus 435 MB of GPU memory, against a target under about
-  700 MB in total. Revoking the Blob URL saved nothing. The GPU share is 296 MB of live
-  textures, of which 125 MB are preloaded font pages and about 119 MB desktop skin sprite
-  sheets; lazy fonts and lazy duel-only sheets could save about 200 MB ([[memory-budget]],
-  "GPU memory"). Then the card database (JS heap 281 MB).
+  menu is now 663 MB in the renderer plus 306 MB of GPU memory, against a target under about
+  700 MB in total. Revoking the Blob URL saved nothing. Font sizes are made on first use
+  (2026-10-05): 123 MB fewer textures at the menu, 129 MB less GPU memory at the phone-size
+  menu. The GPU share is now 174 MB of live textures, of which about 119 MB are desktop skin
+  sprite sheets that duels and the deck editor mostly use ([[memory-budget]], "GPU memory").
+  Then the card database (JS heap 281 MB).
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
@@ -68,8 +69,8 @@ See [[webtest-harness]].
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
   about EventBus listeners with no handlers.
 - [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
-- [ ] Phase 5 (top priority, phones crash): streaming music, the one-byte `app.js` source and dropping startup data are done;
-  next the GPU textures (fonts, sprite sheets), then shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
+- [ ] Phase 5 (top priority, phones crash): streaming music, the one-byte `app.js` source, dropping startup data and lazy font sizes are done;
+  next the GPU textures (sprite sheets; fonts are done), then shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
   minimap pixmap, an LRU image cache, and a test at
   a phone viewport.
 - [ ] Phase 6: async fetch, a service worker, and save versioning.

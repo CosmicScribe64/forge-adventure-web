@@ -237,7 +237,7 @@ probably show 300 to 330 MB for the same content, but it would also hold composi
 and driver copies that this setup doesn't show. Treat 300 MB as the number to reduce.
 
 **Recommended reductions, largest first (estimated texture savings, desktop menu):**
-1. Preload only the font sizes Adventure uses, or stop at 36 as `MAX_FONT_SIZE_MANY_GLYPHS` does,
+1. (Done 2026-10-05, see "Lazy font sizes" below.) Preload only the font sizes Adventure uses, or stop at 36 as `MAX_FONT_SIZE_MANY_GLYPHS` does,
    and generate the larger ones on first use. This drops the 23 pages of 1024x1024 and 13 of
    the 512x512 pages: about 105 MB, with a small stall at the first use of a large size. Which
    sizes Adventure asks for needs a count first.
@@ -253,6 +253,38 @@ and driver copies that this setup doesn't show. Treat 300 MB as the number to re
    quarter or an eighth, but that needs an asset pipeline and loader work.
 
 Together, (1) to (3) could take the menu's textures from 296 MB to about 100 MB.
+
+## Lazy font sizes (2026-10-05)
+
+`FSkinFont.preloadAll` (called from `Forge.java` once the database is loaded, with the loading
+bar text "Loading fonts") made every size from 8 to 72 up front. Upstream does this so that no
+screen has to generate a font while it is drawing: `_get(size)` already generates a missing
+size on first use, so the preload is only about avoiding a pause, and the generation is split
+between the calling thread (FreeType) and the UI thread (the textures), which is why
+`Progress.invokeInEdtNowOrLater` lets the page catch up while a loop does it. Nothing depends on
+the sizes existing: `shrink()` and `increase()` call `_get` too. On the web the preload now
+returns early (`patches/forge-web.patch`, guarded by `forge.web`, so desktop and phone builds
+of Forge keep the old behaviour).
+
+Sizes created by play on the lazy build (a log line in `_get` on a debug build): desktop
+1280x720 menu 9 to 17, overworld 24, a duel 8, 18 to 21, 27 and 33; phone 390x844 menu 9, 10,
+11, 16, 18, 19, and 28 later. The sizes depend on the screen size (`Utils.scale`), so a fixed
+preload list would be brittle and first-use generation is the robust choice. Seventeen sizes
+(8 to 21, 24, 27, 33) cost 8 MB of textures after the menu, the map, a town and a duel. A size
+takes about 0.1 s to generate on the UI thread (log timestamps; sizes 27 and 33 at the duel
+start were created within 0.2 s of each other), and it happens while a screen is being built.
+
+| Measure (headless, software GL, seed 1, local server, no hook unless noted) | Before | After |
+|---|---|---|
+| Menu, desktop: live textures (WebGL hook) | 296 MB in 129 | 173.5 MB in 73 |
+| Menu, desktop: renderer / GPU process | 669 / 456 MB | 659 / 334 MB |
+| Menu, desktop: backing stores | 206 MB | 204 MB |
+| Overworld, desktop: renderer / GPU process | 916 / 596 MB | 902 / 478 MB |
+| Menu, phone 390x844 at 3x: renderer / GPU process | 667 / 435 MB | 663 / 306 MB |
+| Startup stage "Loading fonts" (`[ttg]` line) | 3.2 s | 0.0 s |
+
+Played on the lazy build: a new game through the tutorial, a town, the overworld, a duel
+started with the coin toss, a seven-card hand and several turns.
 
 ## Findings for phones (2026-10-01)
 
