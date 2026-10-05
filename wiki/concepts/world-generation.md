@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#round-8, NOTES.md#baseline, NOTES.md#round-9, PLAN.md#phase-4, web/src/main/java/forgeweb/compat/WfcPool.java, scripts/wfc-golden]
-updated: 2026-10-01
+updated: 2026-10-05
 tags: [performance, worldgen, wfc, workers]
 ---
 
@@ -33,6 +33,7 @@ World hash `cf3e72545c906f8e` is the same in every variant. See [[metrics]].
   waits without blocking the page ([[green-threads]]).
 - **Fallbacks:** chunks are solved locally where the caller can't wait. After a worker error or
   a 2-minute timeout, the pool marks itself broken and solves on the page from then on.
+- **The pool ends when idle** (2026-10-05): each worker holds about 44 MB of renderer memory, so `WfcPool` terminates all workers 5 s after the last reply and the next generation starts them again ([[memory-budget]]).
 - `?wfc=local` forces on-page solving for comparison, and `?seed=N` fixes the world.
 - Progress: a floating bar shows chunks solved out of chunks sent ([[startup-and-loading]]).
 

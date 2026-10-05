@@ -80,14 +80,22 @@ See [[webtest-harness]].
   is fixed ([[webtest-harness]]).
 - [ ] Other test-plan steps (JVM unit tests, game scenarios, memory thresholds) are not started.
 
+## Found 2026-10-05, not fixed
+- [ ] The wasm pixmap heap grows by 31 MB at a second new game and stays after loading a save
+  (`forgePixmaps.heapMB` 40, then 71, 72), so the previous world's `biomeImage` may not be
+  disposed. Check `World.dispose` and `WorldSave` replacement. See [[memory-budget]].
+- [ ] The `scripts/e2e-newgame` limits are 1.25 times the measured values, so the 889 MB overworld
+  RSS from before the worker change would still pass the 895 MB limit. Tighten them when the numbers settle.
+- [ ] `scripts/e2e-newgame` is not in CI (74 s on top of a build); see [[webtest-harness]].
+
 ## Plan items not started
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
   about EventBus listeners with no handlers.
 - [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
 - [ ] Phase 5 (top priority, phones crash): streaming music, the one-byte `app.js` source, dropping startup data and lazy font sizes and sprite sheets are done;
-  next shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
-  minimap pixmap, an LRU image cache, and a test at
-  a phone viewport.
+  next shrink the card database. Ordered list in [[memory-budget]]. Releasing the
+  minimap's JS copy is done; disposing it, an LRU image cache, and a test at
+  a phone viewport remain.
 - [ ] Phase 6: async fetch, a service worker, and save versioning.
 - [ ] Re-measure app.js after the Phase 2 stubs. See [[metrics]].
 

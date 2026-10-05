@@ -445,6 +445,47 @@ is small. The big gain of the experiment came from not keeping `CardType`, SVar 
 cards that are never played, and a slim index would keep type and cost. Estimated net: 20 to 40 MB for a
 medium-sized change to `CardFace` and `CardRules`. Cheaper first: the `CardType` change, now done.
 
+## Overworld: workers, minimap copy, chunk arrays (2026-10-05)
+
+Measured at the overworld (new game, seed 1, headless Chromium, software GL, desktop 1280x720, 10 s
+after "Generating world took"), renderer RSS / JS heap / backing stores:
+
+| Build | Renderer | JS heap | Backing stores | Notes |
+|---|---|---|---|---|
+| Start of the day (3 workers alive) | 889 MB | 284.8 MB | 253.5 MB | GPU process 370 MB |
+| `?wfc=local`, no workers | 756 MB | 283.4 MB | 254.4 MB | same build |
+| Workers terminated when idle | 747 MB | 282.3 MB | 253.5 MB | phone size 753 MB |
+| Minimap copy dropped | 728 MB | 283.2 MB | 224.5 MB | phone size 722 MB |
+| WorldBackground arrays per chunk | 724 MB | 277.5 MB | 224.5 MB | phone size 715 MB, 278.4 MB heap |
+
+- **WFC workers cost real memory**: 133 MB of renderer RSS for 3 workers on this 4-core box, about
+  44 MB each (an isolate, a TeaVM heap and retained garbage; none of it is in the main JS heap, so
+  the `heap` step doesn't show it). `WfcPool` now terminates the pool 5 s after the last reply and
+  starts it again for the next generation (`window.forgeWfc` is deleted). A second new game
+  respawned 3 workers and finished; a worker redirected to a missing URL logged "WFC workers failed",
+  fell back to the page and finished the world in 37.8 s (against about 20 s with workers). The
+  worker count is 1 to 7 by core count, so a phone with more cores saved more.
+- **The minimap's JS copy**: `World.biomeImage` (2800x2800, 31 MB in the wasm heap) got a 31 MB JS
+  mirror `ByteBuffer` whenever it was read (texture upload, PNG encode) and kept it all session.
+  `Gdx2DPixmapNative` now drops the mirror of any pixmap of 16 MB or more 5 s after its last
+  `getBuffer()`. The next read (the map screen, a later save, a loaded world) copies from the wasm
+  heap again. The live pixmap counter showed mirrors 31 MB to 1 MB. Checked in one session: HUD minimap,
+  map screen (the HUD zoom button opens it), save to a slot, second new game, load of the slot.
+  Wrong for a big pixmap written through its buffer without `copyToHeap()`; none exists.
+- **Tried and dropped**: an explicit release hook called by Forge's `Assets.getNewMiniMapTexture`
+  and `World.generateNew` (a Forge patch). At run time `Pixmap` has no `getNative()`, so the call threw
+  `$getNative is not a function` inside `generateNew`, the exception was swallowed and generation
+  ended half done (`Cannot read properties of null (reading 'data')` in `WorldBackground.loadChunk`
+  later). A registry of mirrors in `Gdx2DPixmapNative` found no owner for reasons not understood.
+  The timer needs no Forge change.
+- **WorldBackground**: `chunks`, `chunksSprites` and `chunksSpritesBackground` are indexed by chunk but
+  were sized by tile (700x700 each). They are now `ceil(tiles / chunkSize)` per side
+  (`patches/forge-web.patch`). Saved 5.7 MB of JS heap (not the 12 MB estimated; the arrays hold
+  4-byte references). Walked across two chunk borders in the overworld without errors; the world
+  edge was not walked.
+- The wasm pixmap heap showed 40 MB after the first world and 71 MB after a second new game and
+  after a load, so the previous world's `biomeImage` may stay alive; not investigated ([[open-issues]]).
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -480,13 +521,13 @@ Next steps, in order:
    maps are done (about 21 MB); next a slim card index with script details read on first use (see "JS heap by owner" above).
    Forge's lazy loading can't be used as it is.
 7. Test on a real iPhone, or in WebKit through Playwright, at each step.
-- Release the minimap pixmap after upload.
+- Done 2026-10-05: workers terminated when idle, minimap copy dropped, WorldBackground arrays per chunk (see "Overworld" above). Open: the minimap as a half-size or RGB565 texture (15 to 22 MB GPU), disposing the pixmap and rebuilding it from the cached PNG (about 31 MB of wasm heap that never shrinks).
 - An LRU-capped card image cache (art from [[scryfall]] is cached in memory, unbounded).
 - The `ImageUtil` memo is unbounded.
 - Native deflate buffers the whole payload (the ~31 MB world map at the end of generation).
 - Test at a phone viewport, and on a real GPU (headless GPU numbers are software GL).
 
 ## How to measure
-`scripts/measure` runs the webtest `heap` step, which reports the JS heap, ArrayBuffers, wasm memories, and
+`scripts/e2e-newgame` asserts renderer RSS, JS heap and texture memory at the menu and the overworld (see [[webtest-harness]]). `scripts/measure` runs the webtest `heap` step, which reports the JS heap, ArrayBuffers, wasm memories, and
 live pixmaps with allocation stacks of the large ones. Build peak memory is tracked as well
 (see [[metrics]], [[build-pipeline]]).

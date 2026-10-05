@@ -291,3 +291,15 @@ Next steps:
   `app.js`; the other failures are three save and deck checks.
 - Pages touched: [[webtest-harness]], [[selftest]], [[build-pipeline]], [[open-issues]].
 
+## [2026-10-05] update | Overworld memory: workers, minimap copy, chunk arrays, e2e-newgame
+- Read `$S/overworld-memory.md` findings against the code, then measured each change at the overworld
+  (seed 1, headless, software GL; desktop and phone size). WFC workers cost 133 MB (889 against 756 MB
+  with `?wfc=local`); the pool now ends 5 s after the last reply. Big pixmap mirrors (16 MB and more) are
+  dropped 5 s after their last read (backing stores 253.5 to 224.5 MB). WorldBackground arrays are per
+  chunk (JS heap 283.2 to 277.5 MB). Overworld renderer 889 to 724 MB desktop, 753 to 715 MB phone size.
+- Added `scripts/e2e-newgame` with the webtest steps `measure`, `assert-max`, `no-repeat-downloads` and
+  `web/tools/glhook.js`; 74 s, not in CI. Final checks passed: startup, new game, town, duel, deck
+  editor, map screen, save, load, second new game, `scripts/selftest` 39/39, `scripts/e2e-boot`.
+- A Forge-side release hook failed (no `getNative()` on `Pixmap` at run time) and was dropped.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[webtest-harness]], [[world-generation]], [[src-forge-web-patch]].
+

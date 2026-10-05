@@ -34,3 +34,5 @@ Every change to [[forge|Forge]] source, as one `git diff` against the commit pin
 > This meets the first half of PLAN Phase 3's exit criterion.
 
 See also [[forge-patches-not-fork]].
+
+Update 2026-10-05: `forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java` sizes `chunks`, `chunksSprites` and `chunksSpritesBackground` by chunk count instead of tile count ([[memory-budget]]).

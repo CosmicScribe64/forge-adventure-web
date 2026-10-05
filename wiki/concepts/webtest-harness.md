@@ -52,6 +52,23 @@ a build. Known harmless errors, as of 2026-10-05 (each has a cause in the code c
 Checked by breaking the page on purpose: a startup exception gives a `[pageerror]` and a timeout in
 `until-state` (exit 1), and a late `console.error` fails `no-errors` (exit 1).
 
+### Memory and download assertions, `scripts/e2e-newgame` (2026-10-05)
+Three more steps: `measure <name>` (garbage-collects, then records renderer RSS, JS heap, GPU
+process RSS and, with `--init-script web/tools/glhook.js`, live WebGL texture memory), `assert-max
+<name>.<rss|heap|tex|gpu> <limit>` and `no-repeat-downloads [<min MB>]` (fails if a URL with the same
+Range header was requested twice and the decoded body is at least 1 MB; it uses Playwright's
+`requestfinished` events, so cache hits count too). `web/tools/glhook.js` wraps the WebGL calls to
+count texture, buffer and renderbuffer bytes.
+
+`scripts/e2e-newgame` starts a seed-1 new game: title screen, `measure menu`, New Game, Start, wait
+for "Generating world took", 10 s (the workers end after 5 s and the minimap copy after 5 s), `measure world`,
+the limits, the repeat-download check and `no-errors`. It takes 74 s on top of a build and is not
+in CI yet. The limits are in one commented block at the top of the script, with the date and the
+conditions (desktop 1280x720, headless, software GL, seed 1): menu 763 MB RSS, 321 MB heap, 95 MB
+textures, overworld 895, 349 and 155, each 1.25 times the measured value. 41 distinct requests, none repeated.
+Checked by hand: `assert-max` fails above its limit, and a file fetched twice from a throwaway server
+is reported. In the overworld the state scene is `TileMapScene` (the start cave), not `GameScene`.
+
 ## 2. `forgeweb.test.WebTest` (inside the game)
 A harness compiled into the game, **only active with `?test`** (PLAN Phase 7). It is driven by
 `api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `dismiss`,
