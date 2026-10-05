@@ -22,6 +22,7 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[classic-code-pruning]]: ReachReport and Unsupported, to cut Classic code from app.js
 - [[selftest]]: the 25 s check suite; one check per real bug
 - [[unit-tests]]: JVM and Python tests (file store, latin1-js, Forge's own), run by scripts/unit-test and CI
+- [[e2e-tests]]: the boot, new game and cycle scenarios in desktop, Chromium phone and WebKit iPhone modes, CI and release wiring, the release rehearsal and the live 0.1.1 baseline
 - [[webtest-harness]]: webtest.py steps, the in-game WebTest harness, play scripts, gaps
 
 ## Components (our code)

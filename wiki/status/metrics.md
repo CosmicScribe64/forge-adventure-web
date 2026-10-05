@@ -29,6 +29,7 @@ headless Chromium with software GL (SwiftShader) and world seed 1. Measure with 
 | Renderer process at the main menu | 817 MB (2026-10-01) | 633 MB desktop, 631 MB phone size (2026-10-05, music streamed, fonts and sprite sheets on first use, `app.js` source as one-byte text and packs dropped after startup; 669 and 667 MB before the font change) | [[memory-budget]] |
 | Overworld, renderer / JS heap / backing stores | 889 MB / 284.8 / 253.5 (2026-10-05 morning, 3 WFC workers) | **724 MB / 277.5 / 224.5** desktop, 715 / 278.4 / 222.2 phone size (2026-10-05, seed 1, headless, software GL; workers ended after generation, minimap copy dropped, chunk arrays per chunk) | [[memory-budget]] |
 | `scripts/e2e-newgame` | n/a | 74 s; limits 763 / 321 / 95 MB (menu rss / heap / textures) and 895 / 349 / 155 MB (overworld), 1.25 times 608 to 610 / 257 / 75.4 and 714 to 716 / 278.4 to 278.7 / 124.0 | [[webtest-harness]] |
+| `scripts/e2e-release site` (7 runs on the assembled site, 2026-10-05) | n/a | 486 s: boot 26, 26, 32 s; new game 58, 58, 68 s; cycle 218 s (desktop, Chromium phone, WebKit iPhone) | [[e2e-tests]] |
 | GPU process | 743 MB (software GL) | not re-measured | |
 | Worst frame at duel start | 1.7-2 s | 0.83 s (the rest is `Match.startGame` and the first duel frame) | [[bug-catalog]] |
 | Card DB load | about 10 s for 33,980 cards (R5) | about 6.5 s in the game ("Loading cards from archive"); in SelfTest, scripts went from 4.3 to 1.6 s and the card database from 12 to 5.6 s (R11) | [[startup-and-loading]] |

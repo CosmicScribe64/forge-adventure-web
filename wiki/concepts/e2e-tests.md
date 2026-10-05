@@ -1,0 +1,107 @@
+---
+type: concept
+sources: [scripts/e2e-boot, scripts/e2e-newgame, scripts/e2e-cycle, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/webtest.py, .github/workflows/ci.yml, .github/workflows/pages.yml, web/html/index.html]
+updated: 2026-10-05
+tags: [testing, phones, webkit, releases]
+---
+
+# End-to-end tests: devices, CI and the release rehearsal
+
+The end-to-end scenarios drive the built game in a real browser. Each one runs in three modes, desktop,
+Chromium emulating a phone and WebKit with an iPhone descriptor, and the release workflow runs all of them on the assembled site
+before it deploys and again on the live site afterwards. The harness itself is in [[webtest-harness]] and the numbers they
+check are in [[memory-budget]].
+
+## Scenarios
+
+| Script | What it checks | Run time on top of a build |
+|---|---|---|
+| `scripts/e2e-boot` | the loading bar reaches 100 percent, the title screen comes up, no unexpected console errors, and on touch devices nothing but the game is under the top centre of the page | 26 to 32 s |
+| `scripts/e2e-newgame` | boot, then a new game (seed 1) played to the overworld with real taps or clicks on New Game and Start, no unexpected errors, no file of 1 MB or more downloaded twice, and memory limits at the menu and the overworld (not in WebKit) | 58 to 68 s |
+| `scripts/e2e-cycle` | three new games in one session; pixmap heap, textures, JS heap and RSS do not grow ([[webtest-harness]]) | 218 to 224 s on desktop |
+
+## Devices
+
+The first argument, or `DEVICE`, picks the mode (`scripts/e2e-common`). Logs and screenshots get `-phone` or `-iphone` in their names.
+
+| Mode | Engine and context | Asserts |
+|---|---|---|
+| `desktop` | Chromium, 1280x720 | everything, with the limits in `scripts/e2e-newgame` |
+| `phone` | Chromium, 390x844, scale 3, mobile, touch, Android user agent | everything, with a limit block of its own (the numbers equal desktop within a few MB, see [[memory-budget]]) |
+| `iphone` | Playwright's WebKit, descriptor "iPhone 13" (`IPHONE_DEVICE` changes it) | function: the title screen, no unexpected console errors, a new game to the overworld, no repeat downloads. Texture, pixmap and wasm numbers are recorded and RSS is recorded from the web process; none are asserted, because WebKit cannot report a JS heap and its RSS is not comparable with Chromium's |
+
+`URL=<site root>` loads a site that is already running instead of starting `scripts/serve-web`, for the rehearsal and for the live
+site. `E2E_CACHE_BUST=<text>` adds a query parameter so a CDN that caches by URL serves the current `index.html`.
+
+The WebKit that Playwright ships on Linux is the WPE port, not the Apple build on an iPhone. It tests the engine's JavaScript
+and WebGL behaviour, its console, and its memory growth, but not iOS limits, the iOS touch stack, audio unlocking or the
+address bar. See [[open-issues]].
+
+## Where they run
+
+- **CI**, on every push: `scripts/e2e-boot` on desktop and `scripts/e2e-boot phone`. The phone run adds about 30 s (a second boot, plus starting the server again).
+- **`pages.yml`, before deploying**: `scripts/build-site`, then `scripts/e2e-release site`, which starts `scripts/serve-site` (the
+  site under `/forge-adventure-web/`, compressed by `web/tools/serve-compressed.py`) and runs boot and newgame in all three modes and
+  e2e-cycle on desktop (`CYCLE=all` adds the phone modes). It keeps going after a failure and prints a result line per run. About 8 minutes in total (486 s), against about 1.5
+  minutes for the boot and new game scenarios it replaces.
+- **`pages.yml`, after deploying**: the `verify-live` job runs `scripts/e2e-release live` (e2e-boot in the three modes, about 100 s) against the
+  page URL the deployment reports, three attempts two minutes apart.
+
+## Release rehearsal, 2026-10-05
+
+Commit 49cfe5e plus the changes of this session, minified with a source map (`TEAVM_OBFUSCATED=true TEAVM_SOURCE_MAP=true scripts/build-web`,
+5 min 42 s), `scripts/build-site`, `scripts/e2e-release site`, in the sandbox (4 cores, headless, software GL, a proxy in front of the browser):
+
+| Run | Result | Time | Key numbers |
+|---|---|---|---|
+| boot, desktop | pass | 26 s | |
+| boot, phone | pass | 26 s | top centre of the page is not the full screen button |
+| boot, iPhone | pass | 32 s | same check |
+| newgame, desktop | pass | 58 s | menu RSS 574, overworld 691 MB, rise 117 MB, 41 distinct requests |
+| newgame, phone | pass | 58 s | menu RSS 571, overworld 683 MB, rise 112 MB, 47 distinct requests |
+| newgame, iPhone | pass | 68 s | web process RSS 1880 and 2519 MB (not asserted), 49 distinct requests |
+| cycle, desktop | pass | 218 s | pixmap +2 MB, textures +0.9 MB, RSS +17 MB (game 3 over game 2), heap +2.3 MB over games 1 to 3 |
+
+`TEAVM_OBFUSCATED=true scripts/selftest` passes 39 of 39 (384 s, with its compile) and the readable `scripts/selftest` 39 of 39 (309 s), run again after the last code change, with the unit tests (29 JVM, 15 Python) passing.
+
+## The live site, version 0.1.1, in WebKit (baseline, 2026-10-05)
+
+Loaded from https://cosmicscribe64.github.io/forge-adventure-web/ with the same scripts:
+
+| Run | Result | Time |
+|---|---|---|
+| boot, desktop (Chromium) | pass | 30 s |
+| boot, phone (Chromium) | pass | 31 s |
+| boot, iPhone (WebKit) | **fail**: WebGL `INVALID_ENUM` console errors | 36 s |
+| newgame, iPhone (WebKit; `NEWGAME_INPUT=api` because 0.1.1 has no `api where`) | **fail** on 78 console errors; it did reach the overworld | 76 s |
+
+The WebKit web process of 0.1.1 is 2701 MB at the title screen and 3454 MB at the overworld (textures 295 and 347.5 MB), against 1.9 GB and
+2.3 to 2.5 GB now. This machine has no memory limit, so neither crashes here; a phone has one.
+
+## Findings from the WebKit and phone runs
+
+- **`GL_LINE_SMOOTH` is not a WebGL capability** ([[bug-catalog]]). Forge's `Graphics` enables it around every line and outline.
+  Chromium swallows the `INVALID_ENUM`; WebKit logs a console error for each call, 42 to 78 lines on the way to the overworld, and
+  `--strict` fails on them. Fixed in the patch (`Graphics.setLineSmoothing`). Desktop Chromium never showed it.
+- **A Blob URL revoked while its audio was still being fetched** (our code, `HowlMusic`). The title screen creates a music track
+  and replaces it within half a second; `dispose()` revoked the first track's Blob URL immediately, and in about one WebKit boot in
+  three the element's fetch had not started yet, so WebKit logged `Failed to load resource`, a message with no URL. The `[netfail]` lines
+  of webtest named the `blob:` URL, and a run that delayed `revokeObjectURL` by 3 s through an init script had no failure in 4 runs
+  where the unchanged page failed 1 in 4 (and 3 in about 8 earlier). The revoke now waits 5 s, and 7 WebKit boots in a row passed afterwards (six alone and the rehearsal's). Chromium never showed it.
+- **WebKit's memory** is about three times Chromium's ([[open-issues]]).
+- **The page's full screen button covered the top of New Game on a phone.** On a touch screen the button was shown for the first
+  seconds after loading at the top centre, 34x28 pixels from 4 pixels down, and the title screen's New Game button starts about
+  25 pixels down at 390 pixels wide. While it was shown `document.elementFromPoint(195, 28)` was the button, so a tap there
+  toggled full screen and not New Game. It is not shown unasked on touch screens now, and `e2e-boot` checks the top centre on phones.
+  This is the one place found where a phone-size click could be lost.
+- **Menu clicks at phone size, root cause:** the earlier report that menu clicks did not work at phone size could not be reproduced on this build. A plain mouse
+  click at a button's coordinates, a touchscreen tap and the harness's `api click` all reach New Game and Start in
+  Chromium's phone mode. What was missing is that no test sent real input at phone size: `api click` calls the stage directly. The
+  overlapping full screen button above is the one defect that would lose a tap, and the portrait layout puts buttons at
+  different coordinates than the desktop one (New Game at about 195, 56 in CSS pixels), so a script written with desktop
+  coordinates clicks empty space. `scripts/e2e-newgame` now uses `tap`, which asks the game where the button is.
+- The phone layout logs one more known harmless error, `Failed to load: fallback_skin/title_bg_lq_portrait.png`, the portrait twin of the
+  desktop one ([[webtest-harness]]).
+
+## See also
+[[selftest]] · [[unit-tests]] · [[build-pipeline]] · [[pick-up-work]]

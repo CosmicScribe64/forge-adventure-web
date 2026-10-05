@@ -368,3 +368,19 @@ Next steps:
 - README's Status section now gives the 0.1.2 memory figures (about 800 MB at the main menu and
   about 900 MB on the overworld at phone size, page plus GPU, headless Chrome) instead of the
   1.3 GB of 0.1.1, and says the game hasn't been tried on a real phone yet.
+
+## [2026-10-05] update | Phone and WebKit in the automated tests, release rehearsal
+- `web/tools/webtest.py` gained `--browser chromium|webkit|firefox`, `--device "iPhone 13"` and `--phone`; `click` taps in touch contexts;
+  `tap <button>` presses a button with real input (new harness command `api where`); `measure` works without the DevTools protocol (WebKit:
+  RSS from the `WPEWebProcess`, no JS heap); failed requests are logged as `[netfail]`. New `scripts/e2e-common`, `scripts/serve-site`
+  and `scripts/e2e-release`; `e2e-boot`, `e2e-newgame` and `e2e-cycle` take `desktop`, `phone` or `iphone`, and `URL=` loads any site.
+- Wiring: CI runs the boot test on desktop and in phone mode (about 30 s more). `pages.yml` assembles the site, serves it under a subpath with
+  compression and runs all of it before deploying (486 s: boot, new game in three modes, cycle on desktop), then a `verify-live` job loads the live
+  site in the three modes after the deployment. New page [[e2e-tests]]; updated [[webtest-harness]], [[pick-up-work]], [[build-pipeline]],
+  [[memory-budget]] (phone and WebKit table), [[metrics]], [[open-issues]], [[bug-catalog]].
+- Findings: WebGL has no `GL_LINE_SMOOTH`, so Forge's `Graphics` produced `INVALID_ENUM` errors that only WebKit logs (patched); a Blob URL revoked
+  while the audio element was still fetching it gave an intermittent WebKit error (fixed in `HowlMusic`); the page's full screen button covered the top of
+  New Game on phones (fixed); the earlier report that menu clicks failed at phone size could not be reproduced, because mouse clicks, touchscreen taps and
+  `api click` all work on this build. WebKit's web process is about three times Chromium's renderer (1.9 and 2.3 to 2.5 GB), the likely cause of the iPhone crash,
+  not yet attributed.
+- Release rehearsal and the live 0.1.1 baseline in WebKit are in [[e2e-tests]]. Pages read: the harness, memory budget, open issues, pick-up-work and the workflows.

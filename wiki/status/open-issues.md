@@ -30,6 +30,30 @@ the change.
   enumerates it, so it needs a slim card index first ([[memory-budget]], "JS heap by owner").
   The cheap first step, `CardType` and `CardRules` creating their collections on first add, is done
   (21 MB, 2026-10-05).
+- [ ] **WebKit needs about three times Chromium's memory** (found 2026-10-05 with the WebKit iPhone run of
+  [[e2e-tests]]). Playwright's WebKit 26.0 (the WPE port on Linux, no memory limit) has a web process of 1.9 GB RSS at
+  the title screen and 2.3 to 2.5 GB at the overworld, seed 1, release build; a page with one empty WebGL canvas is 0.38 GB there.
+  Chromium's renderer is 0.57 and 0.68 GB, plus a 0.23 and 0.39 GB GPU process. The release 0.1.1 site in the same WebKit
+  is 2.7 GB at the title and 3.5 GB at the overworld (textures 295 and 347 MB). RSS peaks at 1.67 GB about 8 s into
+  loading (reading and compiling the 20 MB `app.js`, preloading libGDX), settles near 1.25 GB, then climbs to 1.9 GB as the cards
+  load. Limiting the container's memory showed the tab does not shrink under pressure: with 2.2 GB it survived the title screen
+  and crashed on New Game, with 1.5 GB it crashed at 8 s. In the same engine a 160 MB wasm memory costs 160 MB once touched and
+  200,000 strings cost about 35 MB, so the excess is in the script and its objects (bytecode, compiled code or the card
+  data as JavaScript objects), not in wasm or textures. It is not yet attributed. A real iPhone has the same JavaScript engine but its own
+  limits, so this is the most likely reason 0.1.1 crashed there, and it still applies to 0.1.2. Next: a Safari Web Inspector
+  memory timeline on a real iPhone, and measuring how much of the peak is the parse (for example by loading a script of the same size that
+  does nothing).
+- [ ] **The canvas is drawn at CSS pixels on a phone.** At 390x844 and device scale factor 3 the canvas backing store is
+  390x844, not 1170x2532, so text and sprites are upscaled by the browser. It costs no extra texture or framebuffer memory,
+  which is why the phone numbers equal the desktop ones, but it is soft. Whether to render at full resolution is a decision
+  ([[screen-layout]]).
+- [ ] **The full screen button still appears for 3 seconds after a tap near the top centre** on a touch screen. It is no longer shown
+  unasked (2026-10-05: it sat over the top 7 pixels of New Game on a phone for the first seconds after loading and took the taps there),
+  but the tap that shows it is usually a tap on that same button.
+- [ ] **No real iPhone has run the game.** Everything above is emulation: Chromium's phone mode and Linux WebKit. Touch,
+  the on-screen keyboard, the address bar's effect on the viewport, audio unlocking and iOS memory limits are untested.
+- [ ] **The live check can read the previous release.** GitHub's CDN may serve the old `app.js.gz` for a few minutes (the check adds
+  the commit to the page's URL, which only refreshes `index.html`), so `verify-live` retries three times, two minutes apart.
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
@@ -96,7 +120,7 @@ See [[webtest-harness]].
   is not known; `scripts/e2e-cycle` allows 5 MB of growth over two extra games.
 - [ ] The `scripts/e2e-newgame` limits are 1.25 times the measured values, so the 889 MB overworld
   RSS from before the worker change would still pass the 895 MB limit. Tighten them when the numbers settle.
-- [ ] `scripts/e2e-newgame` is not in CI (74 s on top of a build); see [[webtest-harness]].
+- [ ] The new-game and cycle scenarios run in `pages.yml` (on the assembled site, before a release deploys) but not in CI on every push; see [[e2e-tests]]. Their first runs on GitHub's runners will show how its RSS compares with the sandbox.
 
 ## Plan items not started
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn

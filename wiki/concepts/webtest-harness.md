@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [scripts/e2e-boot, web/tools/loader-watch.js, NOTES.md#round-8, NOTES.md#round-11, NOTES.md#debugging-a-stuck-run, PLAN.md#phase-7, PLAN.md#next, web/tools/webtest.py, web/src/main/java/forgeweb/test/WebTest.java, scripts/play-start, scripts/play, scripts/api]
+sources: [scripts/e2e-boot, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/loader-watch.js, NOTES.md#round-8, NOTES.md#round-11, NOTES.md#debugging-a-stuck-run, PLAN.md#phase-7, PLAN.md#next, web/tools/webtest.py, web/src/main/java/forgeweb/test/WebTest.java, scripts/play-start, scripts/play, scripts/api]
 updated: 2026-10-05
 tags: [testing, harness, playwright]
 ---
@@ -14,7 +14,8 @@ It runs Playwright with headless Chromium in the `mcr.microsoft.com/playwright/p
 against `scripts/serve-web`. Steps: `wait`, `click`, `key`, `hold <key> <s>`, `type`, `shot`,
 `api`, `js`, `reload`, `resize <w> <h>`, `heap` (memory accounting, see [[memory-budget]]),
 `profile`, `stacks` (sampling for hangs), `exceptions [n] [file] [match] [..]`, `until`.
-`--interactive <cmdfile>` keeps a session running. `--init-script <file>` runs a JavaScript file in the page before its own scripts (used for a WebGL memory hook, [[memory-budget]]). Steps are split at semicolons, so a `js` step can't contain one.
+`--browser chromium|webkit|firefox`, `--device "iPhone 13"` and `--phone` pick the engine and the device, and the step `tap <button>` presses a button with real
+input; see "Devices" below. `--interactive <cmdfile>` keeps a session running. `--init-script <file>` runs a JavaScript file in the page before its own scripts (used for a WebGL memory hook, [[memory-budget]]). Steps are split at semicolons, so a `js` step can't contain one.
 Round 11 changes: `exceptions` matches the exception message as well as function names (for
 example `TypeError`). The debugger is attached in interactive sessions too, so `exceptions` and
 `stacks` work there. `--latency MS` and `--mbps N` apply Chrome's network emulation, sync XHR
@@ -22,6 +23,27 @@ included, to show what a hosted page feels like. `web/tools/find-seams.py` scans
 bright lines (texture bleeding, [[screen-layout]]). `scripts/record-startup` records the files
 a new game reads ([[virtual-file-system]]). The debugging aids (`[hb]` heartbeats, exit code
 4 on a tab crash, `--max-time`) are covered in [[debug-stuck-run]].
+
+### Devices, phone emulation and WebKit (2026-10-05)
+`--phone` is Chromium with a 390x844 viewport, device scale factor 3, `isMobile`, touch and an Android Chrome user agent.
+`--device "iPhone 13"` applies Playwright's descriptor for that phone (390x664 viewport, factor 3, an iOS 15 Safari user agent,
+mobile and touch) and `--browser webkit` runs Playwright's WebKit build, which is a WPE port on Linux (version 26.0 in the
+v1.55.0 image), not the Apple build an iPhone runs. It shares the engine's JavaScript (JavaScriptCore) and WebGL rules
+with iOS, but not its memory limits, its GPU path or its touch handling, so a pass there is not a pass on a phone
+(see [[e2e-tests]] and [[open-issues]]). The Playwright image has all three engines; `scripts/webtest` needed no change.
+
+In a touch context `click` taps with the touchscreen, as a finger does. The new step `tap <button text>` asks the game where
+the button is (`api where <text>`, in canvas pixels, from the same lookup that `api click` uses), scales that to the page and
+taps (touch) or clicks (mouse). `api click` calls the stage's `touchDown` and `touchUp` directly, so it never exercises the
+browser's input path, the page's own elements over the canvas, or the touch event handling; `scripts/e2e-newgame` now
+presses New Game and Start with `tap`.
+Only Chromium has the DevTools protocol, so `heap`, `snapshot`, `profile`, `stacks`, `exceptions`, `--latency` and `--mbps` need
+it. `measure` works in every engine and says what it could not measure: renderer RSS comes from `/proc` (the `WPEWebProcess`
+for WebKit), the JS heap is Chromium only (WebKit has no `performance.memory`, and `measureUserAgentSpecificMemory`
+needs cross-origin isolation, which the page does not have, so it reports nothing), and the textures, the wasm pixmap heap and the
+wasm memory sizes come from the page. `assert-max` and `assert-growth` print "skipped" for a value the engine can't report.
+A browser's own "Failed to load resource" console line names no URL, so webtest writes `[netfail]` lines with the status and URL
+of every failed request to the log.
 
 ### Assertions and the boot smoke test (2026-10-05)
 Three steps fail the run with a clear `FAIL:` line and exit code 1 (a plain `until` that times out
@@ -46,8 +68,8 @@ loads `?test=1&seed=1`, waits for `state.scene == 'StartScene'`, waits 3 s, take
 (`out/e2e-boot.png`), expects the loading bar to have reached 100% (`web/tools/loader-watch.js`, a
 `MutationObserver` that keeps the highest width of `#fill`, because the bar is removed from the page
 soon after the first frame) and expects no unexpected console errors. It takes about 30 s on top of
-a build. Known harmless errors, as of 2026-10-05 (each has a cause in the code comment):
-- `Failed to load: fallback_skin/title_bg_lq.png` and `transition.png`, a dummy texture is used
+a build, and takes a device argument (`scripts/e2e-boot phone`, see [[e2e-tests]]). Known harmless errors, as of 2026-10-05 (each has a cause in the code comment):
+- `Failed to load: fallback_skin/title_bg_lq.png`, `title_bg_lq_portrait.png` (the phone-size layout) and `transition.png`, a dummy texture is used
   until the real skin loads (see [[open-issues]]);
 - `The card ... was not assigned to any set` (19 cards, same on desktop);
 - `Upcoming set ... dated in the future` (Star Trek, dated 2026-11-13; goes away after that date);
@@ -66,8 +88,7 @@ count texture, buffer and renderbuffer bytes.
 
 `scripts/e2e-newgame` starts a seed-1 new game: title screen, `measure menu`, New Game, Start, wait
 for "Generating world took", 10 s (the workers end after 5 s and the minimap copy after 5 s), `measure world`,
-the limits, the repeat-download check and `no-errors`. It takes 74 s on top of a build and is not
-in CI yet. The limits are in one commented block at the top of the script, with the date and the
+the limits, the repeat-download check and `no-errors`. It takes 62 s on top of a build on desktop and runs in `pages.yml`. The limits are in one commented block at the top of the script, with the date and the
 conditions (minified release build, desktop 1280x720, headless, software GL, seed 1, 4 cores). Since 2026-10-05
 they are set from the minified numbers: menu 680 MB RSS, 265 MB heap, 80 MB textures, 10 MB pixmap heap;
 overworld 790, 288, 130 and 45. JS heap, textures and pixmap heap are the same on any machine, so they sit 5 to 8
@@ -85,7 +106,7 @@ Starts three new games in one session, each played through the tutorial to the o
 lines logged after the step starts count) and `assert-growth <a>.<field> <b>.<field> <margin>`.
 `measure` also records `pix`, the wasm pixmap heap. It asserts game 3 against game 1 for pixmap heap (5 MB),
 textures (5 MB) and JS heap (15 MB), and game 3 against game 2 for renderer RSS (45 MB, raised from 30 on 2026-10-05
-because a run on the minified build reached exactly 30). Measured on the minified build: 2, 0.9, 2.6 and 15 to 30 MB. It takes 232 s (3 min 52 s) on top of a build and is not in CI. Before the
+because a run on the minified build reached exactly 30). Measured on the minified build: 2, 0.9, 2.6 and 15 to 30 MB. It takes 224 to 232 s on top of a build and runs in `pages.yml`, on desktop. Before the
 fix the same sequence grew by about 62 MB of pixmap heap and 23 MB of textures (two new games at the baseline rates).
 Checked again on 2026-10-05 by commenting out the `biomeImage.dispose()` in `World.generateNew`, rebuilding and
 running it: it failed with "g3.pix is 62 above g1.pix (limit 5)" (pixmap heap 40, 71, 102 MB, RSS 697, 750, 797 MB), and passed again
@@ -93,7 +114,7 @@ with the dispose restored.
 
 ## 2. `forgeweb.test.WebTest` (inside the game)
 A harness compiled into the game, **only active with `?test`** (PLAN Phase 7). It is driven by
-`api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `dismiss`,
+`api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `where <button>`, `dismiss`,
 `layout`, `duel`, `ok`, `cancel`, `play` and `select <card>`, `player`, and `attackall`. Two are for the picture caches:
 `addcards <n>` puts n different cards into the collection (so the deck editor has a long list), and `fsstats` prints the
 files, KB and drops of the capped picture folder. The webtest step `wheel <x> <y> <dy> [<n>]` turns the mouse wheel
@@ -129,4 +150,4 @@ purchase, the overworld, and the first duel won (10 cards, 96 gold and an achiev
   town" quest.
 
 ## See also
-[[selftest]] · [[play-session]]
+[[selftest]] · [[play-session]] · [[e2e-tests]]

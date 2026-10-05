@@ -29,6 +29,32 @@ Runs differ by a few MB, up to about 10 MB for RSS, so the table gives the range
 
 `scripts/e2e-newgame` takes its limits from these numbers ([[webtest-harness]]).
 
+## Phone emulation and WebKit (2026-10-05)
+
+The scenarios of [[e2e-tests]] measure the release build in three modes, from the assembled site served with
+compression under a subpath, seed 1, headless, software GL, in the Playwright container (4 cores, no memory limit). One run each;
+the WebKit RSS varies by a few hundred MB between runs, so it shows as a range of two runs.
+
+| Measure | Menu, Chromium desktop | Menu, Chromium phone | Menu, WebKit iPhone 13 | Overworld, Chromium desktop | Overworld, Chromium phone | Overworld, WebKit iPhone 13 |
+|---|---|---|---|---|---|---|
+| Renderer or web process RSS | 574 MB | 571 MB | 1880 to 1899 MB | 691 MB | 683 MB | 2296 to 2519 MB |
+| JS heap used | 246.6 MB | 245.8 MB | not reported | 268.2 MB | 268.9 MB | not reported |
+| Live WebGL textures | 75.4 MB | 73.5 MB | 72.4 MB | 124.0 MB | 122.2 MB | 121.3 MB |
+| Wasm pixmap heap | 7 MB | 7 MB | 7 MB | 40 MB | 40 MB | 40 MB |
+| GPU process RSS (software GL) | 228 to 242 MB | 225 MB | in the web process | 384 MB | 319 MB | in the web process |
+
+- The Chromium phone numbers equal the desktop ones within a few MB (RSS rise from menu to overworld: 112 MB on the phone,
+  117 MB on desktop in the same run). The game draws into a canvas sized in CSS pixels, 390x844 on the phone, whatever the device scale
+  factor (3), so a phone costs no extra framebuffer or texture memory. `scripts/e2e-newgame phone` has its own limit block
+  set 5 to 8 percent above the heap, texture and pixmap numbers and 110 MB above RSS, as the desktop one is ([[webtest-harness]]).
+- WebKit (Playwright's WPE build 26.0 on Linux, the iPhone 13 descriptor) offers no JS heap number. Its web process is
+  three times Chromium's renderer, and in this port the software GL runs inside it, so a blank page with one WebGL canvas
+  already costs 0.38 GB. The same page of the 0.1.1 release is 2.7 GB at the title and 3.5 GB at the overworld
+  (textures 295 and 347.5 MB). Attribution and what is known are in [[open-issues]]; the WebKit RSS is recorded
+  by the run and not asserted.
+- `window.forgePixmaps`, the texture count of `web/tools/glhook.js` and the wasm memory sizes (160 MB at the menu, 173 MB at the
+  overworld) are identical in all three engines, so those three are the numbers to compare across them.
+
 ## Where memory goes (baseline, 2026-09-29, headless, software GL)
 
 | Measure | At the world |
