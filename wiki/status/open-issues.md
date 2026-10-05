@@ -18,9 +18,9 @@ the change.
   tab. This is PLAN Phase 5. See [[memory-budget]].
   The phone was an iPhone running Chrome (WebKit). Done so far: streaming music (2026-10-04,
   about 55 MB at the menu) and storing the `app.js` source as one-byte text (2026-10-05, 74 MB at
-  the phone-size menu) and dropping the startup pack, editions pack and card zip after 5 idle
-  seconds (2026-10-05, 25 MB at the phone-size menu, 71 MB at the overworld). The phone-size
-  menu is now 678 MB in the renderer plus 433 MB of GPU memory, against a target under about
+  the phone-size menu) and dropping the card zip and the packs after use (2026-10-05, 36 MB at the
+  phone-size menu, 41 MB at the overworld). The phone-size
+  menu is now 667 MB in the renderer plus 435 MB of GPU memory, against a target under about
   700 MB in total. Revoking the Blob URL saved nothing. The GPU share is 296 MB of live
   textures, of which 125 MB are preloaded font pages and about 119 MB desktop skin sprite
   sheets; lazy fonts and lazy duel-only sheets could save about 200 MB ([[memory-budget]],

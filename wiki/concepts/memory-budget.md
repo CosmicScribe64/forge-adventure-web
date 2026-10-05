@@ -154,30 +154,42 @@ which keeps its `ZipFile` and so an open accessor on the zip for the whole sessi
 loading is off on mobile, so after startup the zip is read only if something loads a card
 script by name later, but that path exists.
 
-**The change.** Packs and big (1 MB or more) read-only remote files are now dropped once nothing
-has used them for 5 seconds: `WebFileSystem.trim` clears `packs` and sets `Node.data` to null for
-the big files. Files already copied out of a pack keep their own bytes. `touch` runs on every
-read, so an accessor that was open across a trim (the `ZipFile`) downloads the file again on its
-next read, and a file in a pack that was not read yet downloads the pack again (the browser's
-HTTP cache usually answers). A timer (`setTimeout`) schedules the trim, so nothing in Forge
-changed. The selftest has a new check, "big files and packs read again after the idle trim",
-which trims, reads a zip entry through the open `ZipFile`, and reads an unread file from the
-formats pack (39 of 39 pass).
+**The change.** Big (1 MB or more) read-only remote files, which means the card zip, drop their
+contents once nothing has used them for 5 seconds (`WebFileSystem.trim`); files already copied
+out of a pack keep their own bytes. `touch` runs on every read, so an accessor that was open
+across a trim (the `ZipFile`) downloads the file again on its next read. A pack is forgotten as
+soon as every file in it has been read (`packUnread` counts them). A timer (`setTimeout`)
+schedules the trim, so nothing in Forge changed. The selftest has a new check, "big files and
+packs read again after the idle trim", which trims and reads a zip entry through the open
+`ZipFile` (39 of 39 pass).
+
+**Refetches in play (checked 2026-10-05).** The first version also dropped packs after 5 idle
+seconds, and the startup pack (17.2 MB downloaded) was fetched again between the menu and the new
+game. That is why packs now go only when fully read. Forge loads card scripts eagerly in our
+build (`FModel` turns lazy loading off on mobile, and the log shows "Read cards: 33980 archived
+files" at startup), and `StaticData.attemptToLoadCard` returns early when loading is eager, so
+nothing reads the zip after startup. Downloads of 1 MB or more or of any pack, from an XHR and
+fetch hook, on the final build: startup 8 (app.js 6.5, startup pack 17.2, card zip 5.7,
+editions 1.3 MB, the other packs under 0.2 MB, all downloaded sizes); new game to the world 0
+packs or zips (one music file); the tutorial, a town, two duels played over several turns, a
+concede and the deck editor: no pack or zip downloads, only music tracks of 1.3 to 2.2 MB. The
+town shop could not be entered through the harness (the walk stalled), so the shop was not
+exercised; it draws on the card database already in memory.
 
 | Measure (headless, software GL, seed 1, same machine, dist built from the same source) | Before | After | Saved |
 |---|---|---|---|
-| Menu, desktop: renderer | 699 MB | 672 MB | 27 MB |
+| Menu, desktop: renderer | 699 MB | 669 MB | 30 MB |
 | Menu, desktop: ArrayBuffer backing stores | 237.5 MB | 206 MB | 31.5 MB |
-| Menu, desktop: GPU | 458 MB | 449 MB | noise |
-| Overworld, desktop: renderer | 957 MB | 886 MB | 71 MB |
-| Overworld, desktop: backing stores | 300 MB | 236 MB | 64 MB |
-| Menu, phone 390x844 at 3x: renderer | 703 MB | 678 MB | 25 MB |
-| Menu, phone: GPU | 437 MB | 433 MB | noise |
+| Menu, desktop: GPU | 458 MB | 456 MB | noise |
+| Overworld, desktop: renderer | 957 MB | 916 MB | 41 MB |
+| Overworld, desktop: backing stores | 300 MB | 259 MB | 41 MB |
+| Menu, phone 390x844 at 3x: renderer | 703 MB | 667 MB | 36 MB |
+| Menu, phone: GPU | 437 MB | 435 MB | noise |
 
-A heap snapshot after the change shows the three buffers gone (ArrayBuffer data 164 MB to
+The startup pack is not read in full by a new game, so it stays in memory (the version that
+dropped it early saved 71 MB at the overworld, at the cost of the refetch). A heap snapshot of the first version shows the three buffers gone (ArrayBuffer data 164 MB to
 102 MB), so the logic works. The renderer fell by less than the snapshot suggests at the menu
 (27 of about 53 MB), probably because freed pages are not all returned to the operating system.
-The overworld gain is larger because that run reads more of the startup pack before the trim.
 JS heap used stayed at 281 MB. Checked on the trimmed build: startup, a new game through the
 tutorial to the overworld, entering a town (Secluded Encampment), starting a duel (coin toss and
 a seven-card hand) and the selftest.
@@ -266,8 +278,8 @@ Next steps, in order:
 1. Done 2026-10-04: music streams with `html5: true` and its Blob URLs are revoked (see
    "Music streaming" above). Saved 54 to 58 MB at the menu and 86 MB at the overworld.
 2. Done 2026-10-05, no gain: revoking the app.js Blob URL (see "Heap snapshot" above).
-3. Done 2026-10-05: the packs and the card zip are dropped after 5 idle seconds and downloaded
-   again on demand (see "Dropping the packs" above). Saved 25 to 27 MB at the menu and 71 MB at
+3. Done 2026-10-05: the card zip is dropped after 5 idle seconds and packs once fully read, and
+   downloaded again on demand (see "Dropping the packs" above). Saved 30 to 36 MB at the menu and 41 MB at
    the overworld.
 4. Done 2026-10-05: heap snapshot. It found the two-byte `app.js` source (145 MB), fixed by
    escaping non-Latin-1 characters, which saved 72 MB at the menu.

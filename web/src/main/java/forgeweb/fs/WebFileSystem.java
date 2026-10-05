@@ -25,6 +25,8 @@ public final class WebFileSystem implements VirtualFileSystem {
     /** Downloaded packs by URL (see scripts/build-webdata). Small, and read again and again. */
     private final Map<String, byte[]> packs = new HashMap<>();
     /** Remote files of at least {@link #BIG} bytes whose contents are in memory (see {@link #trim}). */
+    /** Files of each pack that have not been read yet; a pack is forgotten when this reaches 0. */
+    private final Map<String, int[]> packUnread = new HashMap<>();
     private final java.util.List<Node> bigLoaded = new java.util.ArrayList<>();
     private long lastBigUse;
     private boolean trimScheduled;
@@ -59,7 +61,10 @@ public final class WebFileSystem implements VirtualFileSystem {
             Node file = new Node(rel.substring(slash + 1), false);
             file.size = size;
             file.remoteUrl = url;
-            if (cols.length > 3) file.packOffset = Integer.parseInt(cols[3].trim());
+            if (cols.length > 3) {
+                file.packOffset = Integer.parseInt(cols[3].trim());
+                packUnread.computeIfAbsent(url, k -> new int[1])[0]++;
+            }
             file.readOnly = true;
             dir.addChild(file);
             files++;
@@ -141,10 +146,17 @@ public final class WebFileSystem implements VirtualFileSystem {
                 pack = fetch(n.remoteUrl);
                 packs.put(n.remoteUrl, pack);
             }
-            lastBigUse = System.currentTimeMillis();
-            scheduleTrim(IDLE_MS);
             n.data = Arrays.copyOfRange(pack, n.packOffset, n.packOffset + n.size);
-            if (n.size >= BIG) bigLoaded.add(n);
+            if (n.size >= BIG) {
+                bigLoaded.add(n);
+                lastBigUse = System.currentTimeMillis();
+                scheduleTrim(IDLE_MS);
+            }
+            int[] unread = packUnread.get(n.remoteUrl);
+            if (!n.packCounted && unread != null) {
+                n.packCounted = true;
+                if (--unread[0] <= 0) packs.remove(n.remoteUrl);
+            }
             return;
         }
         byte[] bytes = fetch(n.remoteUrl);
@@ -165,11 +177,12 @@ public final class WebFileSystem implements VirtualFileSystem {
     }
 
     /**
-     * The whole packs and big read-only files (the 27 MB card script zip) are only needed while
-     * the game starts. Once nothing has used them for {@link #IDLE_MS}, the packs are forgotten
-     * and the big files drop their contents; they are downloaded again if something reads them
-     * later (an open file keeps its Node, and {@link #touch} reloads it). Files copied out of a
-     * pack keep their own data.
+     * A pack is forgotten as soon as every file in it has been read (files copied out of it keep
+     * their own data), so a pack with files still unread stays: dropping it earlier made the
+     * startup pack download again between the menu and the world. Big read-only files (the 27 MB
+     * card script zip, read once at startup because lazy card loading is off on mobile) drop
+     * their contents once nothing has used them for {@link #IDLE_MS}; they are downloaded again
+     * if something reads them later (an open file keeps its Node, and {@link #touch} reloads it).
      */
     private void trim() {
         trimScheduled = false;
@@ -181,9 +194,8 @@ public final class WebFileSystem implements VirtualFileSystem {
         trimNow();
     }
 
-    /** Drops the packs and big files now (the idle timer calls this; the self test too). */
+    /** Drops the big files' contents now (the idle timer calls this; the self test too). */
     public void trimNow() {
-        packs.clear();
         for (Node n : bigLoaded) {
             if (n.remoteUrl != null && n.readOnly) n.data = null;
         }

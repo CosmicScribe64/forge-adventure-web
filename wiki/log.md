@@ -223,9 +223,12 @@ Next steps:
 - Read [[memory-budget]], [[open-issues]], [[metrics]] and [[virtual-file-system]]. Found the readers
   of the pack map and the zip data (`ensureLoaded`, the accessor, Forge's open `ZipFile`) before
   changing anything.
-- `WebFileSystem` now drops packs and big read-only remote files after 5 idle seconds, and
-  `Accessor.read` loads them again on demand. Menu: renderer 699 to 672 MB (desktop), 703 to
-  678 MB (phone size); overworld 957 to 886 MB; GPU unchanged. New selftest check; 39 of 39 pass.
+- `WebFileSystem` now drops big read-only remote files (the card zip) after 5 idle seconds and a
+  pack once all its files are read; `Accessor.read` loads dropped files again on demand. A
+  network hook showed the first version (packs on the idle timer) downloaded the startup pack
+  twice, so packs are dropped only when fully read; no pack or zip refetch in a new game, town,
+  two duels or the deck editor. Menu: renderer 699 to 669 MB (desktop), 703 to 667 MB (phone
+  size); overworld 957 to 916 MB; GPU unchanged. New selftest check; 39 of 39 pass.
   A new game, town, and duel start were played on the trimmed build.
 - Added `--init-script` to `web/tools/webtest.py` and used a WebGL hook to total live GPU
   memory: 296 MB of textures at the menu (125 MB font pages, about 119 MB desktop skin sprite

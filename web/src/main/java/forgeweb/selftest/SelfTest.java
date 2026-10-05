@@ -265,7 +265,7 @@ public class SelfTest {
         expect(fetched == 1, fetched + " downloads for " + names.length + " files");
     }
 
-    // WebFileSystem drops whole packs and big read-only files when idle; an open zip, a file in a
+    // WebFileSystem drops big read-only files when idle (a pack once all its files are read); an open zip, a file in a
     // pack that was not read yet, and a file read before must all still come back.
     private static void trimmedReads() throws Exception {
         try (ZipFile zip = new ZipFile("/forge/res/cardsfolder/cardsfolder.zip")) {

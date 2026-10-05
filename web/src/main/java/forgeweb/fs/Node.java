@@ -16,6 +16,8 @@ final class Node {
     String remoteUrl;
     /** If >= 0, remoteUrl is a pack and this file is size bytes at this offset in it. */
     int packOffset = -1;
+    /** Set once this file has been counted as read in its pack (see WebFileSystem.packUnread). */
+    boolean packCounted;
     long lastModified = System.currentTimeMillis();
     boolean readOnly;
 

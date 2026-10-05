@@ -30,9 +30,9 @@ file system underneath all of these.
   10% of startup. The whole file is gzipped instead (see below), which makes it 5.8 MB on the wire
   instead of 15.8 MB.
 - **Packs** (`PACK_DIRS`: `editions`, `tokenscripts`, `setlookup`, `formats`, `blockdata`):
-  folders Forge reads whole, concatenated into `packs/*.pack`. The VFS downloads a pack and slices it. Since 2026-10-05 it forgets packs (and big
-  read-only files such as the card zip) after 5 idle seconds and downloads them again if
-  something reads them later ([[memory-budget]]). To find more candidates, count requests per folder with
+  folders Forge reads whole, concatenated into `packs/*.pack`. The VFS downloads a pack and slices it. Since 2026-10-05 it forgets a pack once all its files
+  are read, and big read-only files such as the card zip after 5 idle seconds (downloaded again if
+  something reads them later) ([[memory-budget]]). To find more candidates, count requests per folder with
   `docker logs --since 5m forge-web-serve`.
 - **Startup pack** (Round 11): `packs/startup.pack` holds the other files a new game reads from
   page load to the first map (`web/startup-files.txt`, about 220 files, 17.6 MB gzipped). Fetched
