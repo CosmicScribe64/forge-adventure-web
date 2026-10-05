@@ -120,7 +120,8 @@ public final class WfcPool implements BiomeStructure.ChunkSolver {
      * Starts the workers on first use and returns how many there are: one per core, leaving one
      * for the page, from 1 to 8. Returns 0 once a worker has failed (script missing, crash, or no
      * reply in 2 minutes). Everything is then solved on the page, because waiting on a dead worker
-     * would hang world generation.
+     * would hang world generation. Each worker costs about 45 MB of renderer memory, so the pool is
+     * terminated 5 seconds after the last reply and started again by the next generation.
      */
     @JSBody(script = ""
             + "var p = window.forgeWfc;"
@@ -130,11 +131,20 @@ public final class WfcPool implements BiomeStructure.ChunkSolver {
             + "  var n = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));"
             + "  var fail = function(why) {"
             + "    p.broken = true;"
+            + "    clearTimeout(p.idleTimer);"
             + "    p.workers.forEach(function(w) { w.terminate(); });"
             + "    p.pending.forEach(function(r) { r.reject(why); });"
             + "    p.pending.clear();"
             + "  };"
             + "  p.fail = fail;"
+            + "  p.idle = function() {"
+            + "    clearTimeout(p.idleTimer);"
+            + "    p.idleTimer = setTimeout(function() {"
+            + "      if (p.broken || p.pending.size > 0 || window.forgeWfc !== p) return;"
+            + "      p.workers.forEach(function(w) { w.terminate(); });"
+            + "      delete window.forgeWfc;"
+            + "    }, 5000);"
+            + "  };"
             + "  for (var i = 0; i < n; i++) {"
             + "    var w = new Worker(window.forgeWfcUrl || 'wfc-worker.js');"
             + "    w.onmessage = function(e) {"
@@ -142,6 +152,7 @@ public final class WfcPool implements BiomeStructure.ChunkSolver {
             + "      if (!r) return;"
             + "      p.pending.delete(e.data.id);"
             + "      clearTimeout(r.timer);"
+            + "      if (p.pending.size === 0) p.idle();"
             + "      if (e.data.error) r.reject(e.data.error); else r.resolve(e.data);"
             + "    };"
             + "    w.onerror = function(e) { fail('worker error: ' + (e.message || e)); };"
@@ -156,6 +167,7 @@ public final class WfcPool implements BiomeStructure.ChunkSolver {
     @JSBody(params = {"width", "height", "pixels", "n", "periodicInput", "periodicOutput", "symmetry", "ground",
             "seed", "chunks"}, script = ""
             + "var p = window.forgeWfc, id = ++p.seq;"
+            + "clearTimeout(p.idleTimer);"
             + "var w = p.workers[p.next++ % p.workers.length];"
             + "return new Promise(function(resolve, reject) {"
             + "  if (p.broken) return reject('workers unavailable');"
