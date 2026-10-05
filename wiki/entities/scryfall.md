@@ -10,7 +10,8 @@ tags: [external, card-art, rate-limit]
 Scryfall is the public Magic card database and API. The web build gets card art from Scryfall's API
 through Forge's `LibGDXImageFetcher`. CORS is allowed, so it works from the browser directly.
 
-- Art is cached **in memory only**, with no cap yet (an LRU cap is planned; see [[memory-budget]]).
+- Art is cached **in memory only**: the picture files in the in-memory file system are capped at 64 MB
+  (about 100 KB each, about 640 pictures) and the card textures at 120 (see "Image caches" in [[memory-budget]]).
 - Scryfall asks clients for at most about 10 requests per second. The build is public, so this
   matters; see the next section.
 - The desktop bulk CDN download prompt is disabled on the web ([[classic-code-pruning]]).

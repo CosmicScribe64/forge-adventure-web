@@ -69,6 +69,19 @@ seed 1, the build before and after `TEAVM_OBFUSCATED=true` (same sources).
 The readable column for the menu was measured on a copy of the live build, which does not have the
 `allocate` fix; the fix does not touch these numbers.
 
+## Final minified numbers and picture caches (2026-10-05)
+Same machine and method as the section above, minified build with the image cache fixes. Menu and overworld
+totals for desktop and phone emulation are in the table at the top of [[memory-budget]]
+(desktop menu RSS 574 to 575 MB, overworld 684 to 690 MB). Other numbers from that day:
+| Number | Value |
+|---|---|
+| gdx.wasm start size 1024 vs 256 pages, overworld desktop RSS | 673 and 680 vs 684 and 680 MB (no drop, dropped) |
+| Deck editor, 608 pictures scrolled, no cache fixes: RSS / textures | 899 MB / 632 MB, still rising |
+| Same with the texture cap (120) and the 64 MB picture cap | 861 to 872 MB / 337 to 354 MB, flat |
+| One Scryfall picture in the in-memory file system | about 100 KB |
+| One 488x680 card texture with mipmaps | about 1.7 MB |
+| WFC worker regression, for the test limits | 133 MB RSS (3 workers) |
+
 ## Build and test loop times
 A full game build takes about 5 min (4m20s-5m20s, with 6.5-6.6 GB peak container memory, R11).
 In SelfTest, the checks take about 35 s in the page (36 checks in R11, with the AI matches taking

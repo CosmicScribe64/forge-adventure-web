@@ -68,8 +68,14 @@ count texture, buffer and renderbuffer bytes.
 for "Generating world took", 10 s (the workers end after 5 s and the minimap copy after 5 s), `measure world`,
 the limits, the repeat-download check and `no-errors`. It takes 74 s on top of a build and is not
 in CI yet. The limits are in one commented block at the top of the script, with the date and the
-conditions (desktop 1280x720, headless, software GL, seed 1): menu 763 MB RSS, 321 MB heap, 95 MB
-textures, overworld 895, 349 and 155, each 1.25 times the measured value. 41 distinct requests, none repeated.
+conditions (minified release build, desktop 1280x720, headless, software GL, seed 1, 4 cores). Since 2026-10-05
+they are set from the minified numbers: menu 680 MB RSS, 265 MB heap, 80 MB textures, 10 MB pixmap heap;
+overworld 790, 288, 130 and 45. JS heap, textures and pixmap heap are the same on any machine, so they sit 5 to 8
+percent above the measured values. RSS depends on the machine (releases run this on GitHub's runners), so
+the absolute limits are loose (110 MB above) and a fifth check compares the two measurements,
+`assert-growth menu.rss world.rss 140` (measured 109 to 113 MB): the 133 MB of WFC workers that were never
+terminated would have made it 243 MB, and the old limit of 895 MB was above the 889 MB that run reached, so it could
+not have caught it. 40 distinct requests, none repeated.
 Checked by hand: `assert-max` fails above its limit, and a file fetched twice from a throwaway server
 is reported. In the overworld the state scene is `TileMapScene` (the start cave), not `GameScene`.
 
@@ -78,14 +84,20 @@ Starts three new games in one session, each played through the tutorial to the o
 `TileMapScene` loads and leaves maps), and uses two new steps: `until-new <text> <s>` (only console
 lines logged after the step starts count) and `assert-growth <a>.<field> <b>.<field> <margin>`.
 `measure` also records `pix`, the wasm pixmap heap. It asserts game 3 against game 1 for pixmap heap (5 MB),
-textures (5 MB) and JS heap (15 MB), and game 3 against game 2 for renderer RSS (30 MB). Measured:
-2, 0.9, 2.4 and 20 MB. It takes 232 s (3 min 52 s) on top of a build and is not in CI. Before the
+textures (5 MB) and JS heap (15 MB), and game 3 against game 2 for renderer RSS (45 MB, raised from 30 on 2026-10-05
+because a run on the minified build reached exactly 30). Measured on the minified build: 2, 0.9, 2.6 and 15 to 30 MB. It takes 232 s (3 min 52 s) on top of a build and is not in CI. Before the
 fix the same sequence grew by about 62 MB of pixmap heap and 23 MB of textures (two new games at the baseline rates).
+Checked again on 2026-10-05 by commenting out the `biomeImage.dispose()` in `World.generateNew`, rebuilding and
+running it: it failed with "g3.pix is 62 above g1.pix (limit 5)" (pixmap heap 40, 71, 102 MB, RSS 697, 750, 797 MB), and passed again
+with the dispose restored.
 
 ## 2. `forgeweb.test.WebTest` (inside the game)
 A harness compiled into the game, **only active with `?test`** (PLAN Phase 7). It is driven by
 `api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `dismiss`,
-`layout`, `duel`, `ok`, `cancel`, `play` and `select <card>`, `player`, and `attackall`.
+`layout`, `duel`, `ok`, `cancel`, `play` and `select <card>`, `player`, and `attackall`. Two are for the picture caches:
+`addcards <n>` puts n different cards into the collection (so the deck editor has a long list), and `fsstats` prints the
+files, KB and drops of the capped picture folder. The webtest step `wheel <x> <y> <dy> [<n>]` turns the mouse wheel
+(a `WheelEvent` dispatched from a `js` step scrolled Forge's lists unreliably; Playwright's real one works).
 `WebTestAccess` and `WebTestStageAccess` are in Forge packages so they can reach package-private
 state.
 

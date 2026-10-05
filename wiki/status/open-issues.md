@@ -60,7 +60,7 @@ See [[webtest-harness]].
 - [ ] The native deflate path ignores the caller's Deflater level and state. See [[saves]].
 - [ ] Extended views much taller or wider than 960 units can show world chunks that aren't
   loaded. See [[screen-layout]].
-- [ ] The `ImageUtil` memo and the card art cache are both unbounded. See [[memory-budget]].
+- [x] The card art cache was already an LRU of 100 and the `ImageUtil` memo is bounded by the card database; the card texture cap and a 64 MB cap on picture files were added on 2026-10-05. See [[memory-budget]].
 - [ ] `scripts/build-webdata` output isn't reproducible: `cardsfolder.zip` stores each card file's
   timestamp, so a fresh checkout gives a different file with the same contents. Writing fixed
   timestamps would fix it. See [[build-pipeline]].
@@ -104,8 +104,11 @@ See [[webtest-harness]].
 - [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
 - [ ] Phase 5 (top priority, phones crash): streaming music, the one-byte `app.js` source, dropping startup data and lazy font sizes and sprite sheets are done;
   next shrink the card database. Ordered list in [[memory-budget]]. Releasing the
-  minimap's JS copy is done; disposing it, an LRU image cache, and a test at
-  a phone viewport remain.
+  minimap's JS copy is done, and the card texture cap and a cap on the downloaded
+  picture files are done; disposing the minimap pixmap remains. Renderer RSS rises by about 145 MB while the
+  first 600 card pictures load in the deck editor (JS heap by 20 MB), and this is not the textures or the
+  picture files; find what it is. A card picture dropped from the file cache is not downloaded again until its
+  list item is rebuilt. The phone-viewport check is `scripts/e2e-newgame` with `EXTRA`, but only measured by hand.
 - [ ] Phase 6: async fetch, a service worker, and save versioning.
 - [ ] Re-measure app.js after the Phase 2 stubs. See [[metrics]].
 

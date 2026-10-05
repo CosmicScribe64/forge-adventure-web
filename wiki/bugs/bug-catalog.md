@@ -1,7 +1,7 @@
 ---
 type: bug
 sources: [NOTES.md, NOTES.md#round-11, web/src/main/java]
-updated: 2026-10-04
+updated: 2026-10-05
 tags: [bugs, upstream]
 ---
 
@@ -71,6 +71,7 @@ is filed.
 | Serializer hooks were never made callable, so the streams silently used plain fields, giving empty save headers and cards without rules (R11) | a reflective lookup that finds nothing must fail loudly; test the round trip, not just the write ([[saves]]) |
 | The loader counted decoded bytes against `Content-Length`, so on GitHub Pages, which gzips app.js on the fly, it showed "62 / 32 MB" (user report, 2026-10-01) | count bytes before un-gzipping, ship app.js as `app.js.gz`, and count a file the browser decoded only once it completes; tested against a server that compresses like Pages |
 | An unanchored `forge/` in `.gitignore` also matched `web/src/main/java/forge/`, so 10 source files (including `WebLauncher`) were left out of the repository (found 2026-10-01, before the first commit) | anchor ignore patterns (`/forge/`), and check a release by building from a clean checkout, not the working tree |
+| Forge's card texture cap (`Forge.cacheSize`) never took effect: loaded textures were handed out before the code that records them for eviction, and the old eviction dropped all but the last few loads (found 2026-10-05, scrolling 600 cards in the deck editor kept 632 MB of textures) | fixed in `ImageCache` (least-recently-used set, counted when a load is requested), cap 120 in the browser; any cache needs a test that exceeds its cap |
 | Card zip deflated per entry, inflated by TeaVM's JZlib (R11) | let the browser decompress (gzip with `DecompressionStream`), and never use compiled Java zlib on a hot path |
 
 See also [[teavm-gotchas]], [[open-issues]].

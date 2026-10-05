@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [web/tools/heap-owners.js, NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py]
+sources: [web/tools/heap-owners.js, NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py, scripts/e2e-newgame, web/src/main/java/forgeweb/fs/FileStore.java, patches/forge-web.patch]
 updated: 2026-10-05
 tags: [memory, phones, performance]
 ---
@@ -10,6 +10,24 @@ tags: [memory, phones, performance]
 The phone target (PLAN Phase 5) is the **overworld under 1 GB in total (JS heap and GPU)**. The
 baseline showed that the Java heap is *not* the main cost. Decoded images in libGDX's wasm
 heap and other ArrayBuffers are, and wasm memory never shrinks.
+
+## Current totals (2026-10-05, minified release build)
+
+Measured on the minified build (`TEAVM_OBFUSCATED=true scripts/build-web`, the build releases ship) with
+`measure` in the webtest harness: headless Chromium with software GL, seed 1, default 700x700 world,
+at the overworld after the tutorial's first map load and 10 s of waiting (so the WFC workers and the
+minimap copy are gone). Desktop is 1280x720; the phone is `--width 390 --height 844 --scale 3 --mobile`.
+Runs differ by a few MB, up to about 10 MB for RSS, so the table gives the range of two desktop runs and one phone run.
+
+| Measure | Menu, desktop | Menu, phone | Overworld, desktop | Overworld, phone |
+|---|---|---|---|---|
+| Renderer RSS | 574 to 575 MB | 581 MB | 684 to 690 MB | 687 MB |
+| JS heap used | 246 to 247 MB | 246 MB | 268 to 269 MB | 268 MB |
+| Live WebGL textures | 75.4 MB | 73.8 MB | 124.0 MB | 122.4 MB |
+| Wasm pixmap heap (live) | 7 MB | 7 MB | 40 MB | 40 MB |
+| GPU process RSS (software GL) | 228 to 231 MB | 209 MB | 342 to 378 MB | 297 MB |
+
+`scripts/e2e-newgame` takes its limits from these numbers ([[webtest-harness]]).
 
 ## Where memory goes (baseline, 2026-09-29, headless, software GL)
 
@@ -508,6 +526,61 @@ after the new one exists, which raises the wasm memory high-water mark once; gam
 1.8 MB per distinct map (sprite atlases that stay cached), not 10 MB. `scripts/e2e-cycle` asserts all
 of this ([[webtest-harness]]).
 
+## The gdx.wasm start size does not matter (2026-10-05, not changed)
+
+The memory section of the embedded gdx.wasm module asks for 1024 pages (64 MB) at start, growable up
+to 32768 pages. Its stack and data are under 80 KB, and emscripten's resize hook calls `memory.grow`, so it
+can start much smaller. A small build-time script rewrote the memory minimum in the base64 payload of
+`gdx.wasm.js` (parse the sections, re-encode the one memory section, not a byte search) and the game ran
+with 256 pages (16 MB). The wasm pixmap heap grew past 16 MB without trouble (40 MB at the overworld).
+Renderer RSS did not drop, because the untouched pages of a wasm memory are never resident:
+
+| Minified build, same dist, seed 1 | 1024 pages | 256 pages |
+|---|---|---|
+| Menu desktop RSS (two runs) | 563, 570 MB | 573, 567 MB |
+| Overworld desktop RSS (two runs) | 673, 680 MB | 684, 680 MB |
+| Menu phone RSS | 580 MB | 575 MB |
+| Overworld phone RSS | 687 MB | 688 MB |
+
+JS heap (246 and 267 MB), textures and pixmap heap were identical. The change was dropped and no code
+was committed. The 64 MB that a heap snapshot shows for this memory at the menu is address space; only pages that
+are written count towards RSS.
+
+## Image caches (2026-10-05)
+
+There are three places where card pictures can pile up.
+
+1. **Card textures** (`ImageCache`, Forge). `Forge.cacheSize` (300, or 400 and 600 on devices that
+   report more RAM) is meant to cap them, but nothing enforced it. A texture that has finished loading is
+   handed out by `getAsset`, which returns before the code that records it for eviction, and the old
+   eviction pass dropped everything except the last few loads. In the deck editor, scrolling through a
+   collection of 600 cards (`api addcards 600`, then the wheel) left every texture alive: about 1.7 MB each
+   with mipmaps (488x680), 632 MB of textures after 600 pictures and still rising. Fixed in
+   `patches/forge-web.patch`: `noteUsed` keeps the most recently drawn textures in a `LinkedHashSet` in
+   least-recently-used order, drops a tenth when the cap is passed, and also counts a texture when its
+   load is requested (a card that scrolls away while it loads is never drawn again). The legacy pass in
+   `loadAsset` now calls it. With `forge.web` set the cap is at most 120, as on iOS, because a phone tab
+   has far less memory than a desktop. Desktop behaviour changes only by honouring the existing cap.
+2. **Downloaded picture files.** The web file system keeps everything written under `cache/` in memory
+   (a Scryfall picture is about 100 KB, measured with `api fsstats`), and none of it was ever dropped.
+   `FileStore.capFolder` now bounds `cache/pics/` at 64 MB (about 640 pictures): over the cap the least
+   recently read or written files are deleted, and a finished download no longer keeps the spare half of
+   its growing buffer. `FileStoreTest` covers the order and the sizes. Limitation: Forge only requests a
+   missing picture when a card image object is created, so a list item whose file was dropped keeps its
+   placeholder until the list is built again. 64 MB makes that rare; a 24 MB cap showed it when scrolling
+   back to the top of a 600-card list (369 pictures dropped, 239 files and 24.5 MB kept).
+3. **Card art crops** (`Assets.cardArtCache`) are an LRU of 100 entries already, and the `ImageUtil`
+   memo maps image keys to cards, so it is bounded by the card database. No change.
+
+Test: a new game, 600 cards added to the collection, the deck editor opened on the inventory page, and
+the wheel scrolled 60 rows at a time with 25 s for the downloads, then back up; `measure` after each step
+(desktop, minified build). Without either fix, after 608 pictures: renderer RSS 899 MB, textures 632 MB
+(still growing, 21 to 30 MB per 60 pictures), GPU process RSS 904 MB. With both: RSS 861 to 872 MB, textures
+337 to 354 MB and flat from the fourth step on (the cap), GPU process RSS 614 MB, and all three stay flat
+when scrolling the list again. JS heap rose from 286 to 306 MB in both runs and stayed there. Open:
+renderer RSS still rises by about 145 MB while the first 600 pictures load, with or without the fixes, and
+JS heap by 20 MB; this is not the textures or the picture files, and it stops when the list ends. See [[open-issues]].
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -544,8 +617,8 @@ Next steps, in order:
    Forge's lazy loading can't be used as it is.
 7. Test on a real iPhone, or in WebKit through Playwright, at each step.
 - Done 2026-10-05: workers terminated when idle, minimap copy dropped, WorldBackground arrays per chunk (see "Overworld" above). Open: the minimap as a half-size or RGB565 texture (15 to 22 MB GPU), disposing the pixmap and rebuilding it from the cached PNG (about 31 MB of wasm heap that never shrinks).
-- An LRU-capped card image cache (art from [[scryfall]] is cached in memory, unbounded).
-- The `ImageUtil` memo is unbounded.
+- Done 2026-10-05: the card texture cap works (120 in the browser) and the picture files in memory are capped at 64 MB (see "Image caches" above). The `ImageUtil` memo is bounded by the card database. Open: what raises renderer RSS by about 145 MB over the first 600 pictures.
+- Done 2026-10-05, no gain: a 16 MB start size for gdx.wasm (see "The gdx.wasm start size" above).
 - Native deflate buffers the whole payload (the ~31 MB world map at the end of generation).
 - Test at a phone viewport, and on a real GPU (headless GPU numbers are software GL).
 

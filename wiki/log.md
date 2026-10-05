@@ -343,3 +343,23 @@ Next steps:
   `scripts/unit-test`. CI runs them before the long steps, and Forge's 11 TestNG tests after
   `build-forge-libs`. New page [[unit-tests]]; touched [[virtual-file-system]], [[open-issues]],
   [[selftest]], [[code-map]], [[index]].
+
+## [2026-10-05] update | Release batch: wasm start size, image caches, tighter test limits
+- Measured the minified release build (`TEAVM_OBFUSCATED=true`) at the menu and overworld, desktop and phone
+  emulation; the totals are the new table at the top of [[memory-budget]].
+- gdx.wasm start size: lowering 1024 pages (64 MB) to 256 pages at build time worked (the memory grew to
+  40 MB of pixmaps without trouble) but renderer RSS did not drop (menu 563 and 570 MB against 573 and 567 MB;
+  overworld 673 and 680 against 684 and 680), so no code was committed. Finding in [[memory-budget]].
+- Image caches: Forge's card texture cap never ran (632 MB of textures after scrolling 608 card pictures
+  in the deck editor) and the in-memory file system kept every downloaded picture (about 100 KB each).
+  Fixed `ImageCache` (patch, cap 120 in the browser) and added a 64 MB cap on `cache/pics/` in `FileStore`;
+  new harness pieces `api addcards`, `api fsstats` and the webtest step `wheel`. Open: RSS still rises
+  by about 145 MB over the first 600 pictures for a reason that is not the caches. Pages: [[memory-budget]],
+  [[bug-catalog]], [[webtest-harness]], [[scryfall]], [[open-issues]], [[metrics]].
+- `scripts/e2e-newgame` limits re-set from the minified numbers, with the reasoning in the script, and an
+  RSS-difference check (overworld minus menu, 140 MB) that would have caught the WFC worker regression.
+  `scripts/e2e-cycle` RSS margin raised to 45 MB after a run at the old limit of 30. See [[webtest-harness]].
+- Checks on the final minified build: `scripts/e2e-newgame` (menu RSS 571, overworld 678, rise 107 MB), `scripts/e2e-cycle` (pixmap +2,
+  textures +0.9, RSS +22, heap +1.9 MB), `scripts/e2e-boot`, SelfTest 39/39 readable and minified, 29 JUnit and 15 Python tests all
+  pass. `e2e-cycle` fails with the `biomeImage` dispose removed. Run `scripts/e2e-newgame` on the first release to see how GitHub's runners
+  compare with the sandbox.
