@@ -68,10 +68,12 @@ gdxTeaVM {
         optimization = OptimizationLevel.valueOf(System.getenv("TEAVM_OPT") ?: "BALANCED")
         // Quicker, less precise whole-program analysis; try TEAVM_FAST_ANALYSIS=true to compare.
         fastGlobalAnalysis = System.getenv("TEAVM_FAST_ANALYSIS") == "true"
-        // Minified names. Off everywhere except for SelfTest with TEAVM_OBFUSCATED=true
-        // (scripts/selftest), to find code that depends on Java names before the release is
-        // minified.
-        obfuscated = System.getenv("SELFTEST") == "true" && System.getenv("TEAVM_OBFUSCATED") == "true"
+        // Minified names (TEAVM_OBFUSCATED=true). The release build (pages.yml) turns it on;
+        // local builds, CI and SelfTest stay readable unless it is set.
+        obfuscated = System.getenv("TEAVM_OBFUSCATED") == "true"
+        // TEAVM_SOURCE_MAP=true writes app.js.map next to app.js (scripts/build-web).
+        sourceMap = System.getenv("TEAVM_SOURCE_MAP") == "true"
+        sourceFilePolicy = org.teavm.gradle.api.SourceFilePolicy.DO_NOTHING
         outOfProcess = true
         // Forge is about 400k lines, and the default heap is far too small. Override with TEAVM_MEMORY_MB.
         processMemory = (System.getenv("TEAVM_MEMORY_MB") ?: "5120").toInt()
@@ -101,10 +103,12 @@ gdxTeaVM {
 // result.
 tasks.matching { it.name == "gdx_teavm_web_js_build" }.configureEach {
     doLast {
-        // Matched without the trailing ";" or ",", because TeaVM ends the definition with either,
-        // depending on the output.
-        val broken = "Long_fromNumber = val => BigInt.asIntN(64, BigInt(val >= 0 ? Math.floor(val) : Math.ceil(val)))"
-        val fixed = "Long_fromNumber = val => (val !== val ? BigInt(0) : val >= 9223372036854775807 ? BigInt(\"9223372036854775807\")" +
+        // Found by its body, not by its name: a minified build renames the function (and drops the
+        // spaces). Matched without the trailing ";" or ",", because TeaVM ends the definition with
+        // either, depending on the output.
+        val broken = Regex("""([A-Za-z_$][\w$]*)(\s*=\s*)val\s*=>\s*BigInt\.asIntN\(64,\s*BigInt\(val\s*>=\s*0\s*\?\s*Math\.floor\(val\)\s*:\s*Math\.ceil\(val\)\)\)""")
+        val fixedMarker = "BigInt(\"9223372036854775807\")"
+        fun fixedBody(prefix: String) = prefix + "val => (val !== val ? BigInt(0) : val >= 9223372036854775807 ? BigInt(\"9223372036854775807\")" +
             " : val <= -9223372036854775808 ? BigInt(\"-9223372036854775808\") : BigInt(val >= 0 ? Math.floor(val) : Math.ceil(val)))"
         // Patches only this build's output (see js { outputDir } above), and streams it, because
         // app.js is about 70 MB.
@@ -121,8 +125,10 @@ tasks.matching { it.name == "gdx_teavm_web_js_build" }.configureEach {
             tmp.bufferedWriter().use { out ->
                 input.lineSequence().forEach { line ->
                     when {
-                        line.contains(broken) -> { out.write(line.replace(broken, fixed)); patched++ }
-                        line.contains(fixed) -> { out.write(line); alreadyFixed++ }
+                        broken.containsMatchIn(line) -> {
+                            out.write(broken.replace(line) { fixedBody(it.groupValues[1] + it.groupValues[2]) }); patched++
+                        }
+                        line.contains(fixedMarker) -> { out.write(line); alreadyFixed++ }
                         else -> out.write(line)
                     }
                     out.write("\n")

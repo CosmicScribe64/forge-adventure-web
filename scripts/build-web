@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Compile the web app (web/build/dist/js/webapp) in Docker. Log: web/build/teavm.log
 # Env: TEAVM_MEMORY_MB, TEAVM_OPT (NONE|SIMPLE|BALANCED|AGGRESSIVE), TEAVM_FAST_ANALYSIS=true
+#      TEAVM_OBFUSCATED=true minifies the output (the release build, .github/workflows/pages.yml);
+#      TEAVM_SOURCE_MAP=true also writes app.js.map (published by scripts/build-site).
 #      REACH=1 also writes out/reach-game.txt (code size per package) and out/reach-game-reflect.txt
 #      (reflective call sites); REACH_DETAIL=1 adds what pulls each package in. Slow: 10-40 min.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$ROOT/web/build"
 REACH_PATH=""; [ "${REACH:-}" = 1 ] && REACH_PATH=/work/out/reach-game.txt
-DOCK_CWD=web DOCK_ENV="TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED} -e TEAVM_FAST_ANALYSIS=${TEAVM_FAST_ANALYSIS:-false} -e REACH_REPORT=$REACH_PATH -e REACH_DETAIL=${REACH_DETAIL:-0}" "$ROOT/scripts/dock" 'export GRADLE_OPTS="-Xmx640m -Dorg.gradle.daemon=false"; export TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120}; gradle --console=plain gdx_teavm_web_js_build 2>&1; echo "build peak memory: $(( $(cat /sys/fs/cgroup/memory.peak) / 1048576 )) MB"' > "$ROOT/web/build/teavm.log" || true
+DOCK_CWD=web DOCK_ENV="TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED} -e TEAVM_FAST_ANALYSIS=${TEAVM_FAST_ANALYSIS:-false} -e TEAVM_OBFUSCATED=${TEAVM_OBFUSCATED:-false} -e TEAVM_SOURCE_MAP=${TEAVM_SOURCE_MAP:-false} -e REACH_REPORT=$REACH_PATH -e REACH_DETAIL=${REACH_DETAIL:-0}" "$ROOT/scripts/dock" 'export GRADLE_OPTS="-Xmx640m -Dorg.gradle.daemon=false"; export TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120}; gradle --console=plain gdx_teavm_web_js_build 2>&1; echo "build peak memory: $(( $(cat /sys/fs/cgroup/memory.peak) / 1048576 )) MB"' > "$ROOT/web/build/teavm.log" || true
 # Our page (loading screen, prefetching) replaces gdx-teavm's generated one.
 if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
   cp "$ROOT/web/html/index.html" "$ROOT/web/build/dist/js/webapp/index.html"
@@ -18,11 +20,21 @@ if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
   WEBAPP="$ROOT/web/build/dist/js/webapp"
   # Chrome stores a script's source as two bytes per character if any character is above U+00FF
   # (145 MB for app.js, against about 76 MB); escaping those few characters halves that.
-  python3 "$ROOT/web/tools/latin1-js.py" "$WEBAPP/app.js"
+  # The source map (TEAVM_SOURCE_MAP=true) is loaded by the page, not through app.js: the page runs
+  # app.js from a blob: URL, where TeaVM's relative sourceMappingURL comment would not resolve.
+  MAP=""
+  if [ -f "$WEBAPP/app.js.map" ]; then
+    MAP="$WEBAPP/app.js.map"
+    grep -v '^//# sourceMappingURL=' "$WEBAPP/app.js" > "$WEBAPP/app.js.tmp"
+    mv "$WEBAPP/app.js.tmp" "$WEBAPP/app.js"
+  fi
+  # shellcheck disable=SC2086
+  python3 "$ROOT/web/tools/latin1-js.py" "$WEBAPP/app.js" $MAP
   APP_V=$(shasum "$WEBAPP/app.js" | cut -c1-12)
   WORKER_V=$(shasum "$WEBAPP/wfc-worker.js" 2>/dev/null | cut -c1-12)
+  MAP_V=none; [ -n "$MAP" ] && MAP_V=$(shasum "$MAP" | cut -c1-12)
   # Not sed -i: its argument syntax differs between macOS and GNU sed.
-  sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
+  sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" -e "s/SOURCE_MAP_VERSION/$MAP_V/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
   mv "$WEBAPP/index.html.tmp" "$WEBAPP/index.html"
   # The page downloads app.js gzipped and un-gzips it itself (like the game data), so the progress
   # bar counts real bytes and a host that doesn't compress still sends 7 MB, not 76 MB.

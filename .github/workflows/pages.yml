@@ -34,20 +34,31 @@ jobs:
       - name: Prepare the game data
         run: scripts/build-webdata
 
-      - name: Compile to JavaScript
-        run: scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
+      # The release is minified (TEAVM_OBFUSCATED=true), which breaks code that depends on Java
+      # names, so everything below runs against the minified build before anything is deployed.
+      - name: SelfTest, minified
+        run: TEAVM_OBFUSCATED=true scripts/selftest || { tail -60 out/selftest-js.log; exit 1; }
+
+      - name: Compile to JavaScript, minified, with a source map
+        run: TEAVM_OBFUSCATED=true TEAVM_SOURCE_MAP=true scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
 
       - name: Boot smoke test
         run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
 
-      - name: Keep the boot smoke test's log and screenshot
+      - name: New game scenario
+        run: scripts/e2e-newgame || { tail -40 out/e2e-newgame.log; exit 1; }
+
+      - name: Keep the test logs and screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-boot
+          name: release-tests
           path: |
+            out/selftest-js.log
             out/e2e-boot.log
             out/e2e-boot.png
+            out/e2e-newgame.log
+            out/e2e-newgame-*.png
           if-no-files-found: ignore
 
       - name: Assemble the site

@@ -1,7 +1,9 @@
 # Checks every push to main and every pull request: the Forge patch still applies, Forge and the
 # game still compile, the SelfTest checks pass in headless Chromium, and the built game boots to
-# its title screen without console errors (scripts/e2e-boot). Releases are published
-# by pages.yml.
+# its title screen without console errors (scripts/e2e-boot). These are readable builds. The
+# minified build (TEAVM_OBFUSCATED=true) costs another 5 minutes for its own SelfTest compile, so
+# pages.yml, which publishes releases, runs SelfTest, e2e-boot and e2e-newgame against it. To
+# check a change by hand: TEAVM_OBFUSCATED=true scripts/selftest.
 name: CI
 
 on:

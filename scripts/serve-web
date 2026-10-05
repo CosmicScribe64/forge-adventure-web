@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Serve the built web app from Docker on $PORT (default 8090):
-#   /            web/build/dist/js/webapp (the compiled game)
+#   /            $WEBAPP, default web/build/dist/js/webapp (the compiled game)
 #   /forge/res/  forge/forge-gui/res (game data, fetched on demand)
 #   /forge-data/ web/webdata (manifest, cardsfolder.zip and packs, from scripts/build-webdata)
 # Caching headers: web/tools/serve.py.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${PORT:-8090}"
+WEBAPP="${WEBAPP:-$ROOT/web/build/dist/js/webapp}"
 exec docker run --rm --name forge-web-serve -p "$PORT:8080" \
-  -v "$ROOT/web/build/dist/js/webapp":/site \
+  -v "$WEBAPP":/site \
   -v "$ROOT/forge/forge-gui/res":/site/forge/res:ro \
   -v "$ROOT/web/webdata":/site/forge-data:ro \
   -v "$ROOT/web/tools/serve.py":/serve.py:ro \

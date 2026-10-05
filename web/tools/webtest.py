@@ -223,6 +223,8 @@ def main():
     ap.add_argument("--shot", help="screenshot after the initial wait")
     ap.add_argument("--init-script", help="JavaScript file to run in every page before its own scripts (hooks)")
     ap.add_argument("--steps", default="")
+    ap.add_argument("--load-state", help="browser storage (IndexedDB, localStorage) file to start with, as written by --save-state")
+    ap.add_argument("--save-state", help="write the browser storage (IndexedDB, localStorage) to this file when the run ends")
     ap.add_argument("--log", default="out/console.log")
     ap.add_argument("--heartbeat", type=float, default=15, help="seconds between [hb] lines (0 = off)")
     ap.add_argument("--interactive", help="file to read further steps from, line by line")
@@ -330,9 +332,16 @@ def main():
             "--enable-webgl", "--disable-dev-shm-usage",
         ])
         page = browser.new_page(viewport={"width": args.width, "height": args.height},
-                                device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile)
+                                device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile,
+                                storage_state=args.load_state or None)
         if args.init_script:
             page.add_init_script(path=args.init_script)
+        def save_state():
+            if args.save_state:
+                os.makedirs(os.path.dirname(os.path.abspath(args.save_state)), exist_ok=True)
+                page.context.storage_state(path=args.save_state, indexed_db=True)
+                print(f"browser storage: {args.save_state}")
+
         page.on("console", on_console)
         requests = {}  # (url, range header) -> [response or None, ...], in request order
 
@@ -628,6 +637,7 @@ def main():
                 for line in lines_now[done_lines:]:
                     done_lines += 1
                     if line.strip() == "quit":
+                        save_state()
                         browser.close()
                         log.close()
                         return
@@ -638,6 +648,7 @@ def main():
                         print(f"step failed: {e}", flush=True)
                     print("ok", flush=True)
 
+        save_state()
         browser.close()
     log.close()
     print(f"console: {len(lines)} lines -> {args.log}")

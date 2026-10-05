@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import org.teavm.jso.JSBody;
-import org.teavm.jso.JSObject;
 
 import static org.teavm.classlib.java.io.TObjectOutputStream.*;
 
@@ -342,19 +340,17 @@ public class TObjectInputStream extends InputStream implements java.io.ObjectInp
 
     /**
      * A new instance without running any constructor, like the JDK's deserialization: TeaVM's
-     * class objects keep the JavaScript constructor in $classInfo, and calling it only sets
-     * fields to their defaults. Then the class is initialized, as `new` would.
+     * ClassInfo creates the object with its fields at their defaults, and the class is initialized
+     * first, as `new` would. (Not through the class object's JavaScript fields, which have other
+     * names in a minified build.)
      */
     private static Object allocate(Class<?> c) throws InvalidClassException {
-        Object o = allocateImpl((JSObject) (Object) c);
+        org.teavm.runtime.reflect.ClassInfo info = ((org.teavm.classlib.java.lang.TClass<?>) (Object) c).getClassInfo();
+        info.initialize();
+        Object o = info.newInstance();
         if (o == null) throw new InvalidClassException(c.getName(), "cannot allocate");
         return o;
     }
-
-    @JSBody(params = "cls", script = "var ctor = cls.$classInfo; if (!ctor) return null;"
-            + " if (typeof jl_Class_initialize === 'function') jl_Class_initialize(cls);"
-            + " return new ctor();")
-    private static native Object allocateImpl(JSObject cls);
 
     private String readString() throws IOException {
         int n = data.readInt();

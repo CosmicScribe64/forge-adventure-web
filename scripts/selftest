@@ -2,7 +2,7 @@
 # Fast check of the web runtime without Forge: builds forgeweb.selftest.SelfTest, serves it
 # with the game data on port 8092, runs it in headless Chromium and prints the results.
 # Exit code 0 only if every check passed. Output: web/build/dist/selftest, log out/selftest-js.log
-# TEAVM_OBFUSCATED=true compiles SelfTest with minified names (the release build is not minified yet).
+# TEAVM_OBFUSCATED=true compiles SelfTest with minified names (the release build is minified).
 # TARGET=wasm builds the WebAssembly GC target instead (web/build/dist/selftest-wasm).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

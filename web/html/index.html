@@ -198,7 +198,12 @@
         const code = await download("app.js?v=APP_VERSION", true);
         window.forgeMark("app.js parse");
         const script = document.createElement("script");
-        script.src = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+        // A minified build ships app.js.map (scripts/build-web); the Blob has no base URL, so the
+        // comment that points at it must be absolute.
+        const mapVersion = "SOURCE_MAP_VERSION";
+        const mapComment = /^[0-9a-f]{12}$/.test(mapVersion)
+            ? "\n//# sourceMappingURL=" + new URL("app.js.map?v=" + mapVersion, location.href).href : "";
+        script.src = URL.createObjectURL(new Blob([code, mapComment], { type: "text/javascript" }));
         await new Promise((resolve, reject) => {
             script.onload = resolve;
             script.onerror = reject;
