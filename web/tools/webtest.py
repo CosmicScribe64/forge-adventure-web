@@ -170,6 +170,7 @@ def main():
     ap.add_argument("--mobile", action="store_true", help="emulate a phone: mobile viewport and touch")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait before the steps")
     ap.add_argument("--shot", help="screenshot after the initial wait")
+    ap.add_argument("--init-script", help="JavaScript file to run in every page before its own scripts (hooks)")
     ap.add_argument("--steps", default="")
     ap.add_argument("--log", default="out/console.log")
     ap.add_argument("--heartbeat", type=float, default=15, help="seconds between [hb] lines (0 = off)")
@@ -260,6 +261,8 @@ def main():
         ])
         page = browser.new_page(viewport={"width": args.width, "height": args.height},
                                 device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile)
+        if args.init_script:
+            page.add_init_script(path=args.init_script)
         page.on("console", on_console)
         page.on("crash", lambda *_: crashed.append(True))
         if args.latency or args.mbps:

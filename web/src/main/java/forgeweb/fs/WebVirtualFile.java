@@ -59,7 +59,7 @@ final class WebVirtualFile implements VirtualFile {
             n.packOffset = -1;
             n.readOnly = false;
         }
-        return new Accessor(n, writable, append);
+        return new Accessor(fs, n, writable, append);
     }
 
     @Override
@@ -150,12 +150,14 @@ final class WebVirtualFile implements VirtualFile {
     }
 
     private static final class Accessor implements VirtualFileAccessor {
+        private final WebFileSystem fs;
         private final Node n;
         private final boolean writable;
         private int pos;
         private boolean modified;
 
-        Accessor(Node n, boolean writable, boolean append) {
+        Accessor(WebFileSystem fs, Node n, boolean writable, boolean append) {
+            this.fs = fs;
             this.n = n;
             this.writable = writable;
             if (append) {
@@ -170,6 +172,12 @@ final class WebVirtualFile implements VirtualFile {
         public int read(byte[] buffer, int offset, int limit) {
             limit = Math.max(0, Math.min(n.size - pos, limit));
             if (limit > 0) {
+                try {
+                    fs.touch(n);
+                } catch (IOException e) {
+                    System.out.println("[fs] " + e.getMessage());
+                    return 0;
+                }
                 System.arraycopy(n.data, pos, buffer, offset, limit);
                 pos += limit;
             }

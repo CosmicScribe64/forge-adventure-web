@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html]
+sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py]
 updated: 2026-10-05
 tags: [memory, phones, performance]
 ---
@@ -144,6 +144,104 @@ starting cave and no autosave exists there, so only the selftest save checks cov
 Another option, not taken: minifying `app.js` (TeaVM's obfuscation) would cut the source further,
 but it changes every stack trace the test tools print. That is the owner's choice.
 
+## Dropping the packs and the card zip (2026-10-05)
+
+Step 3 of the plan. `WebFileSystem` kept every downloaded pack in its `packs` map (startup pack
+21.3 MB, editions pack 3.9 MB) and the card script zip in its `Node.data` (27.5 MB). Readers
+found before the change: `ensureLoaded` (every file inside a pack, read for the first time),
+`WebVirtualFile.Accessor.read` (reads `Node.data` directly), and Forge's `CardStorageReader`,
+which keeps its `ZipFile` and so an open accessor on the zip for the whole session. Lazy card
+loading is off on mobile, so after startup the zip is read only if something loads a card
+script by name later, but that path exists.
+
+**The change.** Packs and big (1 MB or more) read-only remote files are now dropped once nothing
+has used them for 5 seconds: `WebFileSystem.trim` clears `packs` and sets `Node.data` to null for
+the big files. Files already copied out of a pack keep their own bytes. `touch` runs on every
+read, so an accessor that was open across a trim (the `ZipFile`) downloads the file again on its
+next read, and a file in a pack that was not read yet downloads the pack again (the browser's
+HTTP cache usually answers). A timer (`setTimeout`) schedules the trim, so nothing in Forge
+changed. The selftest has a new check, "big files and packs read again after the idle trim",
+which trims, reads a zip entry through the open `ZipFile`, and reads an unread file from the
+formats pack (39 of 39 pass).
+
+| Measure (headless, software GL, seed 1, same machine, dist built from the same source) | Before | After | Saved |
+|---|---|---|---|
+| Menu, desktop: renderer | 699 MB | 672 MB | 27 MB |
+| Menu, desktop: ArrayBuffer backing stores | 237.5 MB | 206 MB | 31.5 MB |
+| Menu, desktop: GPU | 458 MB | 449 MB | noise |
+| Overworld, desktop: renderer | 957 MB | 886 MB | 71 MB |
+| Overworld, desktop: backing stores | 300 MB | 236 MB | 64 MB |
+| Menu, phone 390x844 at 3x: renderer | 703 MB | 678 MB | 25 MB |
+| Menu, phone: GPU | 437 MB | 433 MB | noise |
+
+A heap snapshot after the change shows the three buffers gone (ArrayBuffer data 164 MB to
+102 MB), so the logic works. The renderer fell by less than the snapshot suggests at the menu
+(27 of about 53 MB), probably because freed pages are not all returned to the operating system.
+The overworld gain is larger because that run reads more of the startup pack before the trim.
+JS heap used stayed at 281 MB. Checked on the trimmed build: startup, a new game through the
+tutorial to the overworld, entering a town (Secluded Encampment), starting a duel (coin toss and
+a seven-card hand) and the selftest.
+
+## GPU memory (2026-10-05)
+
+Measured with a WebGL hook (`web/tools/webtest.py --init-script`, the hook script wraps
+`texImage2D`, `texStorage2D`, `generateMipmap`, `bufferData`, `renderbufferStorage` and the
+deletes, and records a JavaScript stack when each texture is created). Same conditions as above.
+It is a diagnostic, not part of the build.
+
+| Live GPU objects | Menu, desktop | Menu, phone size | Overworld, desktop |
+|---|---|---|---|
+| Textures (including mip levels) | 296 MB in 129 | 295 MB in 129 | 349 MB in 150 |
+| Buffers | 0.2 MB | 0.2 MB | 0.2 MB |
+| Renderbuffers and framebuffer textures | none | none | none |
+| Canvas backbuffer (estimated, double buffered plus depth) | 10.5 MB (1280x720) | 3.8 MB (390x844) | 10.5 MB |
+| GPU process RSS | 449 MB | 433 MB | 597 MB |
+
+The canvas is drawn at CSS pixels, so a phone at a device pixel ratio of 3 costs less than the
+desktop backbuffer. Drawing at native resolution would be 1170x2532 and about 36 MB.
+
+Where the texture bytes come from (menu, desktop; creation stacks plus matching image sizes to
+files in `forge/forge-gui/res`):
+
+| Source | Size | Notes |
+|---|---|---|
+| `FSkinFont` glyph pages | 125 MB in 65 textures | `FSkinFont.preloadAll` makes every size from 8 to 72: 23 pages of 1024x1024 (92 MB, sizes 50 to 72), 30 of 512x512 (30 MB, sizes 20 to 49), 12 of 256x256 (3 MB) |
+| Desktop skin sprite sheets, `skins/default/sprite_*.png` | about 119 MB | Loaded through the asset manager at startup, with mipmaps: `sprite_sleeves` and `sprite_sleeves2` (1800x2000, 18.3 MB each), `sprite_foils` and `sprite_old_foils` (800x2850, 11.6 MB each), watermark 7.7, avatars 6.7, icons 6.6, border 6.5, setlogo 6.0, planar conquest 5.1, deckbox 5.1, buttons 5.0, and `bg_splash_hd` 5.5 |
+| Other asset manager textures | about 35 MB | Adventure UI images, card frames and the like |
+| `LanaPixel` skin atlas (2948x2048, 16 bit) | 11.5 MB | Read by `Skin` |
+| Other | about 5 MB | Splash images, screenshot buffer, one-pixel textures |
+| Minimap (`Assets.getNewMiniMapTexture`, 2800x2800) | 29.9 MB | Made in `GameHUD.enter` when the world opens |
+| Tilesets of the world map and town (2528x1024, 448x1024) | 15.5 MB | `TemplateTmxMapLoader` |
+
+Mipmaps cost 28.5 MB of the 296 (the 14 mipped sheets).
+
+**Is the headless number a fair stand-in for a phone?** The texture total is. A phone GPU stores
+the same RGBA8 bytes, and on iOS and most Android phones GPU memory is shared with the system
+and counted against the app. The GPU process figure is not: an empty page with one WebGL context
+costs 69 MB here, and uploading 100 MB of textures raised it by 114 MB, so the software renderer
+adds about 70 MB fixed and about 10 to 25 percent on top of the textures (the menu's 449 MB is
+296 MB of textures, 10 MB of backbuffer and about 140 MB of overhead). A real phone would
+probably show 300 to 330 MB for the same content, but it would also hold compositor surfaces
+and driver copies that this setup doesn't show. Treat 300 MB as the number to reduce.
+
+**Recommended reductions, largest first (estimated texture savings, desktop menu):**
+1. Preload only the font sizes Adventure uses, or stop at 36 as `MAX_FONT_SIZE_MANY_GLYPHS` does,
+   and generate the larger ones on first use. This drops the 23 pages of 1024x1024 and 13 of
+   the 512x512 pages: about 105 MB, with a small stall at the first use of a large size. Which
+   sizes Adventure asks for needs a count first.
+2. Do not load the duel-only sprite sheets (sleeves, foils, watermark, avatars, planar
+   conquest, deckbox, setlogo, border, bg_splash) until a duel or the deck editor opens: up to
+   about 100 MB. They are Forge desktop skin files, so this is a patch in how `FSkin` or
+   `Assets` loads them, and icons and buttons may be needed earlier.
+3. Load the sprite sheets without mipmaps: 28 MB, and less if (2) is done. Check the look when
+   they are drawn smaller than their size.
+4. Make the minimap a 16-bit or half-size texture: 15 to 22 MB at the overworld. It is drawn
+   small, but check the map view that uses the same texture.
+5. Later: compressed textures (ASTC or ETC2 made at build time) would take the artwork to a
+   quarter or an eighth, but that needs an asset pipeline and loader work.
+
+Together, (1) to (3) could take the menu's textures from 296 MB to about 100 MB.
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -168,14 +266,16 @@ Next steps, in order:
 1. Done 2026-10-04: music streams with `html5: true` and its Blob URLs are revoked (see
    "Music streaming" above). Saved 54 to 58 MB at the menu and 86 MB at the overworld.
 2. Done 2026-10-05, no gain: revoking the app.js Blob URL (see "Heap snapshot" above).
-3. Next, about 55 MB expected from the snapshot: drop the startup pack (21 MB) and editions
-   pack (4 MB) from `WebFileSystem.packs`, and the card zip (27.5 MB) from its `Node.data`, after
-   startup, if nothing reads them again. Both can be fetched again on demand.
+3. Done 2026-10-05: the packs and the card zip are dropped after 5 idle seconds and downloaded
+   again on demand (see "Dropping the packs" above). Saved 25 to 27 MB at the menu and 71 MB at
+   the overworld.
 4. Done 2026-10-05: heap snapshot. It found the two-byte `app.js` source (145 MB), fixed by
    escaping non-Latin-1 characters, which saved 72 MB at the menu.
-5. Shrink the card database itself (shared strings, smaller per-card structures), since lazy
+5. Reduce GPU textures (see "GPU memory" above): lazy large fonts, duel-only sprite sheets,
+   no mipmaps. Up to about 200 MB of the 296 MB at the menu.
+6. Shrink the card database itself (shared strings, smaller per-card structures), since lazy
    loading can't be used.
-6. Test on a real iPhone, or in WebKit through Playwright, at each step.
+7. Test on a real iPhone, or in WebKit through Playwright, at each step.
 - Release the minimap pixmap after upload.
 - An LRU-capped card image cache (art from [[scryfall]] is cached in memory, unbounded).
 - The `ImageUtil` memo is unbounded.

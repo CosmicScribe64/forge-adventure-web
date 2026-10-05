@@ -10,7 +10,7 @@ tags: [testing]
 A full game build and run takes about 8 minutes. `scripts/selftest` instead builds
 `forgeweb.selftest.SelfTest`, which uses the same shims, redirects, virtual file system and
 reflection configuration, but not the game. The script serves it with the game data on port 8092
-and runs it in headless Chromium. The checks take about 35 s in the page (R11, 36 checks), and a
+and runs it in headless Chromium. The checks take about 35 s in the page (R11, 36 checks; 39 on 2026-10-05, with the idle-trim check), and a
 build adds about 5 min. The exit code is 0 only if every check passes. The log is
 `out/selftest-js.log`. `out/selftest.log` is an older name, so don't read results from it. `SKIP_BUILD=1` reruns without building, and `TARGET=wasm` builds the wasm
 target ([[stay-on-js-backend]]).

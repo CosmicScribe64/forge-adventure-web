@@ -14,7 +14,7 @@ It runs Playwright with headless Chromium in the `mcr.microsoft.com/playwright/p
 against `scripts/serve-web`. Steps: `wait`, `click`, `key`, `hold <key> <s>`, `type`, `shot`,
 `api`, `js`, `reload`, `resize <w> <h>`, `heap` (memory accounting, see [[memory-budget]]),
 `profile`, `stacks` (sampling for hangs), `exceptions [n] [file] [match] [..]`, `until`.
-`--interactive <cmdfile>` keeps a session running.
+`--interactive <cmdfile>` keeps a session running. `--init-script <file>` runs a JavaScript file in the page before its own scripts (used for a WebGL memory hook, [[memory-budget]]). Steps are split at semicolons, so a `js` step can't contain one.
 Round 11 changes: `exceptions` matches the exception message as well as function names (for
 example `TypeError`). The debugger is attached in interactive sessions too, so `exceptions` and
 `stacks` work there. `--latency MS` and `--mbps N` apply Chrome's network emulation, sync XHR

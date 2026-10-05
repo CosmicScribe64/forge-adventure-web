@@ -24,6 +24,10 @@ public final class WebFileSystem implements VirtualFileSystem {
     private String userDir = "/";
     /** Downloaded packs by URL (see scripts/build-webdata). Small, and read again and again. */
     private final Map<String, byte[]> packs = new HashMap<>();
+    /** Remote files of at least {@link #BIG} bytes whose contents are in memory (see {@link #trim}). */
+    private final java.util.List<Node> bigLoaded = new java.util.ArrayList<>();
+    private long lastBigUse;
+    private boolean trimScheduled;
     private int remoteFetches;
     private long remoteBytes;
 
@@ -123,6 +127,10 @@ public final class WebFileSystem implements VirtualFileSystem {
         return n;
     }
 
+    /** Files and packs from this size up are dropped again once idle, see {@link #trim}. */
+    private static final int BIG = 1 << 20;
+    private static final int IDLE_MS = 5000;
+
     /** Downloads a remote file's contents on first use (a whole pack for packed files). */
     void ensureLoaded(Node n) throws IOException {
         if (n.data != null || n.remoteUrl == null) return;
@@ -133,13 +141,68 @@ public final class WebFileSystem implements VirtualFileSystem {
                 pack = fetch(n.remoteUrl);
                 packs.put(n.remoteUrl, pack);
             }
+            lastBigUse = System.currentTimeMillis();
+            scheduleTrim(IDLE_MS);
             n.data = Arrays.copyOfRange(pack, n.packOffset, n.packOffset + n.size);
+            if (n.size >= BIG) bigLoaded.add(n);
             return;
         }
         byte[] bytes = fetch(n.remoteUrl);
         n.data = bytes;
         n.size = bytes.length;
+        if (n.size >= BIG && n.readOnly) {
+            bigLoaded.add(n);
+            lastBigUse = System.currentTimeMillis();
+            scheduleTrim(IDLE_MS);
+        }
     }
+
+    /** Called on every read of a file: a big file dropped by {@link #trim} comes back, and its
+     *  idle time starts again. */
+    void touch(Node n) throws IOException {
+        if (n.data == null) ensureLoaded(n);
+        else if (n.size >= BIG && n.remoteUrl != null) lastBigUse = System.currentTimeMillis();
+    }
+
+    /**
+     * The whole packs and big read-only files (the 27 MB card script zip) are only needed while
+     * the game starts. Once nothing has used them for {@link #IDLE_MS}, the packs are forgotten
+     * and the big files drop their contents; they are downloaded again if something reads them
+     * later (an open file keeps its Node, and {@link #touch} reloads it). Files copied out of a
+     * pack keep their own data.
+     */
+    private void trim() {
+        trimScheduled = false;
+        long idle = System.currentTimeMillis() - lastBigUse;
+        if (idle < IDLE_MS) {
+            scheduleTrim(IDLE_MS - idle);
+            return;
+        }
+        trimNow();
+    }
+
+    /** Drops the packs and big files now (the idle timer calls this; the self test too). */
+    public void trimNow() {
+        packs.clear();
+        for (Node n : bigLoaded) {
+            if (n.remoteUrl != null && n.readOnly) n.data = null;
+        }
+        bigLoaded.clear();
+    }
+
+    private void scheduleTrim(long delayMs) {
+        if (trimScheduled) return;
+        trimScheduled = true;
+        setTimeout(this::trim, (int) delayMs + 50);
+    }
+
+    @org.teavm.jso.JSFunctor
+    interface Callback extends org.teavm.jso.JSObject {
+        void call();
+    }
+
+    @org.teavm.jso.JSBody(params = {"callback", "ms"}, script = "setTimeout(callback, ms);")
+    private static native void setTimeout(Callback callback, int ms);
 
     /** Game files read so far, packed or not (window.forgeFetched): scripts/record-startup
      *  turns those of a new game into the startup pack. */

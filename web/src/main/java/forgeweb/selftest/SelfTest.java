@@ -55,6 +55,7 @@ public class SelfTest {
         check("ObjectInputStream fails with IOException", SelfTest::serialization);
         check("every card script in cardsfolder.zip reads", SelfTest::cardsZip);
         check("packed folders read back whole, in one download", SelfTest::packs);
+        check("big files and packs read again after the idle trim", SelfTest::trimmedReads);
         check("File.list(filter) finds the adventure planes", SelfTest::listPlanes);
         check("./res resolves against the working directory", SelfTest::relativeRes);
         check("libGDX Json reads adventure config.json (reflection)", SelfTest::adventureJson);
@@ -262,6 +263,28 @@ public class SelfTest {
         }
         int fetched = fs.remoteFetches() - before;
         expect(fetched == 1, fetched + " downloads for " + names.length + " files");
+    }
+
+    // WebFileSystem drops whole packs and big read-only files when idle; an open zip, a file in a
+    // pack that was not read yet, and a file read before must all still come back.
+    private static void trimmedReads() throws Exception {
+        try (ZipFile zip = new ZipFile("/forge/res/cardsfolder/cardsfolder.zip")) {
+            java.util.zip.ZipEntry entry = zip.entries().nextElement();
+            byte[] first = zip.getInputStream(entry).readAllBytes();
+            java.io.File ed = new java.io.File("/forge/res/editions");
+            String[] names = ed.list();
+            byte[] one = java.nio.file.Files.readAllBytes(new java.io.File(ed, names[0]).toPath());
+            fs.trimNow();
+            int before = fs.remoteFetches();
+            byte[] again = zip.getInputStream(entry).readAllBytes();
+            expect(java.util.Arrays.equals(first, again), "zip entry differs after trim");
+            expect(fs.remoteFetches() == before + 1, "zip downloaded " + (fs.remoteFetches() - before) + " times");
+            expect(java.util.Arrays.equals(one, java.nio.file.Files.readAllBytes(new java.io.File(ed, names[0]).toPath())),
+                    "pack file differs after trim");
+            java.io.File unread = new java.io.File("/forge/res/formats/Archived/Alchemy/2022-02-10.txt");
+            byte[] other = java.nio.file.Files.readAllBytes(unread.toPath());
+            expect(other.length == 127, "unread pack file after trim: " + other.length + " bytes");
+        }
     }
 
     // A Skin JSON names the classes it creates (in full, or by a libGDX tag); each needs reflection.

@@ -218,3 +218,17 @@ Next steps:
   (phone size); overworld 1034 to 954 MB; GPU unchanged. Selftest 38 of 38. A gameplay save and
   load was not exercised (Save is greyed in the starting cave).
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[build-pipeline]].
+
+## [2026-10-05] fix | Packs and card zip dropped after startup; GPU memory measured (memory plan steps 3 and GPU)
+- Read [[memory-budget]], [[open-issues]], [[metrics]] and [[virtual-file-system]]. Found the readers
+  of the pack map and the zip data (`ensureLoaded`, the accessor, Forge's open `ZipFile`) before
+  changing anything.
+- `WebFileSystem` now drops packs and big read-only remote files after 5 idle seconds, and
+  `Accessor.read` loads them again on demand. Menu: renderer 699 to 672 MB (desktop), 703 to
+  678 MB (phone size); overworld 957 to 886 MB; GPU unchanged. New selftest check; 39 of 39 pass.
+  A new game, town, and duel start were played on the trimmed build.
+- Added `--init-script` to `web/tools/webtest.py` and used a WebGL hook to total live GPU
+  memory: 296 MB of textures at the menu (125 MB font pages, about 119 MB desktop skin sprite
+  sheets), 349 MB at the overworld, buffers negligible. Wrote down reductions with estimates and
+  why the software GL figure is only partly a fair stand-in for a phone.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[webtest-harness]].
