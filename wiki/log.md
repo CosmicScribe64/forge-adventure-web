@@ -384,3 +384,8 @@ Next steps:
   `api click` all work on this build. WebKit's web process is about three times Chromium's renderer (1.9 and 2.3 to 2.5 GB), the likely cause of the iPhone crash,
   not yet attributed.
 - Release rehearsal and the live 0.1.1 baseline in WebKit are in [[e2e-tests]]. Pages read: the harness, memory budget, open issues, pick-up-work and the workflows.
+
+## [2026-10-05] update | README says iPhones likely still crash
+- README's Status section now gives WebKit's numbers next to Chromium's: about 1.9 GB at the
+  title screen and 2.3 to 2.5 GB on the overworld in Linux WebKit with an iPhone profile, so
+  iPhones are likely to still crash. The earlier wording gave only Chromium's figures.
