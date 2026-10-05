@@ -30,6 +30,7 @@ This page shows where the project's own code lives and which concept each part s
 | `forgeweb/worker/` | `WfcWorker` (separate build) | [[world-generation]] |
 | `org/teavm/classlib/java/...` | classlib shadows: `lang.TObject` (borrowed monitors), `util.concurrent.*`, `util.concurrent.locks.*`, `util.zip.{TInflater,TDeflater,TDeflaterOutputStream,TZipFile}`, `io.TObject{Input,Output}Stream`+, `text.*`, `sql.*`, `net.*`, `awt.TFont` | [[web-layer-mechanisms]], [[green-threads]], [[saves]] |
 | `com/badlogic/gdx/graphics/g2d/NinePatch`, `com/ray3k/tenpatch/TenPatchDrawable` | library class shadows with the nearest-filtering inset (R11) | [[screen-layout]] |
+| `com/github/xpenatan/gdx/teavm/backends/web/webaudio/howler/HowlMusic` | gdx-teavm class shadow: streams music with `html5: true`, retries after the first gesture, revokes the Blob URL (2026-10-04) | [[memory-budget]] |
 | `emu/com/badlogic/gdx/...` | gdx-teavm emu shadows: `Gdx2DPixmapNative`, `freetype/FreeType`, `utils/async/AsyncResult`, Box2D subset | [[memory-budget]] |
 | `forge/.../SelfTestAccess`, `WebTestAccess`, `WebTestStageAccess`, `com/github/.../textra/SelfTestAccess` | package-private access for tests | [[selftest]], [[webtest-harness]] |
 | `web/html/index.html` | loader page, prefetch, IndexedDB bridge, canvas sizing | [[startup-and-loading]], [[screen-layout]] |

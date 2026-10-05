@@ -16,8 +16,9 @@ the change.
   day, the main menu costs about 820 MB in the renderer plus about 480 MB of GPU memory, at a
   desktop size and at a phone size (390x844 at 3x) alike, which is past what phone browsers allow a
   tab. This is PLAN Phase 5. See [[memory-budget]].
-  The phone was an iPhone running Chrome (WebKit). First fix to try: stream music instead of
-  decoding it (about 62 MB per track today).
+  The phone was an iPhone running Chrome (WebKit). Step 1, streaming music, is done (2026-10-04)
+  and saved about 55 MB at the menu (phone size: renderer 835 to 777 MB, GPU 439 MB), which is
+  not enough alone. Next is step 2, revoking the app.js Blob URL.
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't
@@ -61,8 +62,8 @@ See [[webtest-harness]].
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
   about EventBus listeners with no handlers.
 - [ ] Phase 4: check that the page never stays unresponsive for more than 100 ms.
-- [ ] Phase 5 (top priority, phones crash): stream music, revoke Blob URLs, drop startup data
-  after use, shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
+- [ ] Phase 5 (top priority, phones crash): streaming music is done; revoke the app.js Blob URL,
+  drop startup data after use, shrink the card database. Ordered list in [[memory-budget]]. Also releasing the
   minimap pixmap, an LRU image cache, and a test at
   a phone viewport.
 - [ ] Phase 6: async fetch, a service worker, and save versioning.
@@ -79,7 +80,7 @@ line across the duel background is Forge's own field separator, not a bug.
 ## Upstream
 - [ ] Report the TeaVM and gdx-teavm bugs to their projects. None has been reported yet; the list,
   with each one's status, is in [[bug-catalog]]. The gdx-teavm ones (AsyncResult, the pixmap
-  copy, the FreeType leak, Howler decoding music) have fixes here to offer. Add the lost monitor
+  copy, the FreeType leak, Howler decoding music, which is fixed here as of 2026-10-04) have fixes here to offer. Add the lost monitor
   waiters bug in `TObject` ([[scryfall]]) once it is fixed here.
 - [ ] Offer the upstreamable Forge patches to Card-Forge (world generation speed, the
   colorIdentity save bug, the duel-start fixes, ViewLayout, the texture seams). See

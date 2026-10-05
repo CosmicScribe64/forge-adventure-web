@@ -191,3 +191,17 @@ Next steps:
   `api.scryfall.com`, gaps 103 to 148 ms, busiest second held 9 sends. Sandbox proxy errors made
   the downloads themselves fail, so only the sends and spacing were verified.
 - Pages touched: [[bug-catalog]], [[green-threads]], [[scryfall]], [[open-issues]], [[selftest]].
+
+## [2026-10-04] fix | Stream music with Howler html5 (memory plan step 1)
+- Read [[memory-budget]], [[metrics]], [[open-issues]] and the Howler row of [[bug-catalog]]. Added a
+  shadow `HowlMusic` that creates music Howls with `html5: true`, retries `play()` on Howler's
+  `unlock` event (a refused HTML5 play is dropped, unlike a Web Audio one), and revokes the Blob
+  URL in `dispose()`.
+- Measured headless, software GL, seed 1, same build with the flag patched in `app.js`: renderer
+  at the menu 830 to 776 MB (desktop) and 835 to 777 MB (phone size 390x844 at 3x), at the
+  overworld 1117 to 1031 MB; GPU unchanged. A first run looked like only 5 MB saved because the
+  dist used as baseline was already a streaming build, so the flag was toggled in one build to
+  compare.
+- Without the retry the menu music never started in the test; with it, it starts at the first
+  click. Track changes dispose the old Howl. Not tested on a real iPhone.
+- Pages touched: [[memory-budget]], [[open-issues]], [[bug-catalog]], [[metrics]], [[code-map]].

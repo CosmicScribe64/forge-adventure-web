@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5]
-updated: 2026-10-01
+updated: 2026-10-04
 tags: [memory, phones, performance]
 ---
 
@@ -49,6 +49,47 @@ in memory after startup, and card scripts load eagerly.
   font preloading had exhausted the fixed FreeType heap at some screen sizes.
 - `effects/demo.gif` (one 11488x6480 texture) was left out of web data.
 
+## Music streaming (2026-10-04)
+
+Step 1 of the plan is done. A shadow `HowlMusic`
+(`web/src/main/java/com/github/xpenatan/gdx/teavm/backends/web/webaudio/howler/HowlMusic.java`)
+creates each music Howl with `html5: true`, so the browser streams the track through an audio
+element and nothing is decoded into samples. Sound effects (`HowlSound`) stay on Web Audio.
+
+Conditions: headless Chromium through `scripts/webtest`, software GL, local server, world seed 1,
+the same build with only the flag changed (the compiled `app.js` was patched between runs).
+RSS is the renderer or GPU process from `/proc`, taken by the `heap` step.
+
+| Measure | Web Audio (before) | Streaming (after) | Saved |
+|---|---|---|---|
+| Main menu, desktop 1280x720: renderer | 830 MB | 776 MB | 54 MB |
+| Main menu, desktop: GPU | 460 MB | 461 MB | none |
+| Main menu, phone 390x844 at 3x: renderer | 835 MB | 777 MB | 58 MB |
+| Main menu, phone: GPU | 436 MB | 439 MB | none |
+| Overworld (new game, 10 s after world generation), desktop: renderer | 1117 MB | 1031 MB | 86 MB |
+| Overworld, desktop: GPU | 600 MB | 601 MB | none |
+
+JS heap (281 MB) and ArrayBuffer backing stores (310 MB at the menu, 372 MB at the overworld)
+did not change, because decoded audio is not counted there. A decoded track costs about 55 MB of
+renderer memory, a little less than the 62 MB of samples, and the overworld run had decoded two
+tracks. This is not enough alone: the menu is still about 780 MB in the renderer plus 440 to
+460 MB of GPU memory, against a target under about 700 MB in total for the renderer.
+
+Behaviour checked in the same setup:
+- Music is an HTML5 Howl (`_html5` true, duration 185 s for `menus/menu2.mp3`), and it plays.
+- Browsers refuse `play()` on an audio element before the first click. Web Audio Howls wait and
+  start by themselves at the first gesture, but an HTML5 Howl emits `playerror` and Howler
+  drops the request, so the menu music stayed silent. `HowlMusic` now retries on Howler's
+  `unlock` event if the game still wants the track (a flag cleared by `pause` and `stop`). After
+  a click the menu track plays from the start.
+- Track changes work: seeking to the last two seconds of the menu track made the game dispose it
+  and start the next one (164 s), and only one Howl stayed alive.
+- `dispose()` now revokes the Blob URL, which fixes the leak noted in [[bug-catalog]].
+- Volume goes through `setVolume` unchanged; the game's music volume preference was 100 in the
+  test, so only the pass-through was seen, not other levels.
+- Not tested on a real iPhone. WebKit may need a user gesture for every new audio element, so
+  a track change on iOS could stay silent until the next tap. Test it at step 6.
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -57,7 +98,7 @@ the strictest per-tab memory limits, so the target is under about 700 MB, half o
 Allocation sampling at the main menu (live JS memory 275 MB):
 - Most of the JS heap is the card database: card-rule parsing (`CardRules$Reader`),
   `CardDb.addSetCard`, strings (`fromCharCode`, `substring`, regex groups), lists and maps.
-- **Music is fully decoded.** gdx-teavm's `Howl.create` (`webaudio/howler/Howl.java` in
+- **Music was fully decoded** (fixed on 2026-10-04, see above). gdx-teavm's `Howl.create` (`webaudio/howler/Howl.java` in
   backend-web 1.6.1) makes `new Howl({src: [blobUrl]})` without `html5: true`, so Howler decodes
   the whole file with Web Audio. The menu track (`menu2.mp3`, 1.5 MB, 185 s) becomes about 62 MB
   of samples, and Howler caches decoded tracks, so each new track (overworld, towns, battles) can
@@ -70,9 +111,8 @@ card pool and `StaticData.ensureAllCardsLoaded` would load everything anyway.
 
 ## Still to do (PLAN Phase 5, [[open-issues]])
 Next steps, in order:
-1. Stream music instead of decoding it: shadow gdx-teavm's `Howl` (or `HowlMusic`) so music uses
-   `html5: true`, keep short sound effects on Web Audio, and revoke the Blob URLs. Measure the
-   main menu and the overworld before and after.
+1. Done 2026-10-04: music streams with `html5: true` and its Blob URLs are revoked (see
+   "Music streaming" above). Saved 54 to 58 MB at the menu and 86 MB at the overworld.
 2. Revoke the app.js Blob URL once the script has loaded (a 76 MB copy).
 3. Drop the startup pack and the card zip after startup, if nothing reads them again.
 4. Take a heap snapshot to break down the 310 MB of ArrayBuffer backing stores.
