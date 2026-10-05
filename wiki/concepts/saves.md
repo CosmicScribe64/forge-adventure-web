@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#round-8, NOTES.md#round-11, web/src/main/java/org/teavm/classlib/java/io/TObjectOutputStream.java, web/src/main/java/forgeweb/fs/UserDataStore.java]
-updated: 2026-10-01
+updated: 2026-10-05
 tags: [saves, serialization, indexeddb]
 ---
 
@@ -18,12 +18,24 @@ and others) handle:
 - references and cycles, arrays, collections by kind, `EnumMap`
 - plain fields, by reflection (fields exposed by `WebReflection`, see [[reflection-on-teavm]])
 - private `writeObject`/`readObject` and `readResolve`, only for classes in `SerialHooks`
-- allocation without constructors, via the class's JS constructor (`@JSBody` in
-  `allocateImpl`, which is JS-only and a blocker for wasm, see [[stay-on-js-backend]])
+- allocation without constructors, through TeaVM's `ClassInfo.newInstance()` (since 2026-10-05; it was
+  a `@JSBody` that read the class object's `$classInfo` field, which is renamed in a minified build and
+  was JS-only, see [[stay-on-js-backend]])
 - `java.util.UUID`, which isn't `Serializable` in TeaVM, via its own stream tag
 
 JDK-format streams are **rejected with an `IOException`** (so desktop saves don't load, and
 vice versa). A [[selftest]] check covers this.
+
+## Compatibility between readable and minified builds (2026-10-05)
+The stream stores class names (`Class.getName`) and field names from reflection metadata, and both
+are the real Java names in a minified build, so the byte format did not change. Checked by hand with
+the headless browser: a new game, the tutorial, a visit to the first town (which writes the autosave)
+and a manual save to slot 1 were made on the readable build that was live before the change, and
+the browser storage was kept (`webtest --save-state`). The minified build loaded both the slot-1 save
+and the autosave and reached the overworld with the same player position and gold. The reverse (a save
+from the minified build loaded by the readable one) worked too. Not covered: saves from a long game
+(only a tutorial-length save was tried), though the SelfTest round trips cover every value type
+Adventure stores.
 
 ## Persistence
 Files under `/forge/data/` are mirrored to IndexedDB by `UserDataStore` (see

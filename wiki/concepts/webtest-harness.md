@@ -37,6 +37,10 @@ thread while Forge is still starting killed the UI thread in a trial (`Cannot re
 null (reading '$player9')` in the monitor code), so a command during startup is unsafe; this is
 not fixed.
 
+`webtest.py` can keep browser storage between runs: `--save-state FILE` writes IndexedDB and
+localStorage when the run ends (or on `quit` in an interactive session), and `--load-state FILE` starts
+with it. That is how a save made by one build was loaded by another ([[saves]]).
+
 `scripts/e2e-boot` is the boot smoke test that CI and `pages.yml` run. It starts `scripts/serve-web`,
 loads `?test=1&seed=1`, waits for `state.scene == 'StartScene'`, waits 3 s, takes a screenshot
 (`out/e2e-boot.png`), expects the loading bar to have reached 100% (`web/tools/loader-watch.js`, a

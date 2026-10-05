@@ -27,7 +27,7 @@ steps below.
 | Serve | `scripts/serve-web` | port 8090 | also the desktop preview config `forge-web` |
 | Static site | `scripts/build-site` | `web/build/site` (245 MB) | the game (app.js only as `app.js.gz`), `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |
 | CI | `.github/workflows/ci.yml` | pass or fail on each push and pull request | wiki lint, patch, Forge build, game data, SelfTest, game compile and the boot smoke test (`scripts/e2e-boot`, about 1 min, see [[webtest-harness]]); on failure the log and screenshot are uploaded |
-| Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above, including the boot smoke test before the site is assembled, on GitHub's runners for each published release, or by hand. The repository's `github-pages` environment must allow the `main` branch and `v*` tags, or a release's deploy job is rejected; see [[open-issues]] |
+| Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above, including SelfTest, the boot smoke test and the new-game scenario against the minified build before the site is assembled, on GitHub's runners for each published release, or by hand. The repository's `github-pages` environment must allow the `main` branch and `v*` tags, or a release's deploy job is rejected; see [[open-issues]] |
 
 ## TeaVM settings (environment variables read by `build.gradle.kts`)
 - `TEAVM_MEMORY_MB` (default 5120). Forge is about 400k lines, and TeaVM needs about 5 GB to analyse it.
@@ -39,9 +39,29 @@ steps below.
 - `REACH=1` and `REACH_DETAIL=1` write `out/reach-game.txt` and `out/reach-game-reflect.txt`
   (see [[classic-code-pruning]], [[reflection-on-teavm]]). This is slow, taking 10-40 min.
 - `REFLECTION_DEBUG=true` turns on gdx-teavm's reflection debugging.
-- `TEAVM_OBFUSCATED=true` (only with `SELFTEST=true`, set by `scripts/selftest`): minified SelfTest, see [[selftest]]. The game is not minified.
-- `outOfProcess = true`, `obfuscated = false` for the game. There is also a `wasm {}` block for
+- `TEAVM_OBFUSCATED=true`: minified names for the JS build, which `scripts/build-web` and `scripts/selftest` pass on. The release build (`pages.yml`) sets it. Local builds, CI and SelfTest stay readable. The wasm target and the world-generation worker (`scripts/build-worker`, 212 KB) are never minified. See "Minified build" below.
+- `TEAVM_SOURCE_MAP=true`: TeaVM writes `app.js.map` (`sourceMap = true`, `sourceFilePolicy = DO_NOTHING`, so the map names Java files but does not embed or copy them). `pages.yml` sets it together with `TEAVM_OBFUSCATED`.
+- `outOfProcess = true` for the game. There is also a `wasm {}` block for
   [[stay-on-js-backend|the wasm spike]] (`TARGET=wasm scripts/selftest`).
+
+## Minified build (2026-10-05)
+The release is minified, because it cuts `app.js` from 76.1 MB to 20.5 MB (gzip 6.8 to 3.8 MB) and
+the JS source string Chrome holds at the menu from 73.9 MB to 20.9 MB ([[metrics]], [[memory-budget]]).
+Things that make it work:
+- The long-cast patch in `web/build.gradle.kts` finds `Long_fromNumber` by its body with a regular
+  expression (minified output has another name and no spaces) and writes the fix under the name it found.
+- Code must not read TeaVM's generated JavaScript fields by name. `TObjectInputStream.allocate` did
+  (`cls.$classInfo`); it now calls TeaVM's `ClassInfo.newInstance()` ([[saves]]). `$rt_nativeThread` and
+  the other `$rt_` runtime functions keep their names.
+- `scripts/build-web` removes TeaVM's `sourceMappingURL` comment from `app.js`, because the page runs the
+  code from a blob: URL where a relative URL would not resolve. `web/html/index.html` appends an absolute
+  `//# sourceMappingURL=` (with the map's content hash) to that blob when `app.js.map` exists. DevTools
+  fetches the map only when open. `scripts/build-site` copies `app.js.map` into the site with the rest.
+- `web/tools/latin1-js.py` takes the map as a second argument and moves each generated column by the
+  extra length of the escapes before it (the lines of a minified file are long). On the release build,
+  0 of 899,219 mapped columns lie past the end of their line.
+- The map is 4.3 MB (1.3 MB gzipped), with 2,925 source files named.
+Build time and peak memory were not different in a way that mattered (7m11s for the game, 2026-10-05).
 
 ## Building from a clean checkout (2026-10-01)
 Before the first commit, a copy of exactly the tracked files was built from scratch: a fresh

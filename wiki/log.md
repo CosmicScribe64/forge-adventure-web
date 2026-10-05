@@ -303,3 +303,19 @@ Next steps:
 - A Forge-side release hook failed (no `getNative()` on `Pixmap` at run time) and was dropped.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[webtest-harness]], [[world-generation]], [[src-forge-web-patch]].
 
+
+## [2026-10-05] update | Minified release build, source map, fixes for the four minified SelfTest failures
+- Read `web/build.gradle.kts`, `scripts/build-web`, `scripts/build-site`, `web/tools/latin1-js.py`,
+  `TObjectInputStream`, both workflows and the TeaVM 0.15 sources (`TClass`, `ClassInfo`). Not read: NOTES.md.
+- Root causes: the long-cast patch matched `Long_fromNumber` by name (now by body, with a regular
+  expression), and `TObjectInputStream.allocate` read the class object's `$classInfo` field, which a
+  minified build renames (now `ClassInfo.newInstance()`). The class-name theory was wrong; the save format
+  is unchanged. SelfTest 39 of 39 minified and readable.
+- Release builds are minified (`TEAVM_OBFUSCATED=true`) with `app.js.map` (`TEAVM_SOURCE_MAP=true`).
+  `app.js` 76.1 to 20.5 MB, gzip 6.8 to 3.8 MB, JS source string at the menu 73.9 to 20.9 MB.
+  `latin1-js.py` shifts map columns. `pages.yml` runs SelfTest, e2e-boot and e2e-newgame on it; CI stays readable.
+- Checked by hand on the minified build: startup, new game, tutorial, town, deck editor, a duel to turn 2,
+  loading saves made by the live readable build (slot 1 and autosave) and the reverse. `webtest` got
+  `--save-state` and `--load-state`.
+- Pages touched: [[build-pipeline]], [[selftest]], [[saves]], [[metrics]], [[memory-budget]], [[open-issues]],
+  [[webtest-harness]], [[pick-up-work]], [[stay-on-js-backend]].

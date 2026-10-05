@@ -70,10 +70,16 @@ See [[webtest-harness]].
   instead. This predates the port's changes. The boot smoke test allows this line.
 
 ## Testing (2026-10-05)
-- [ ] SelfTest passes only 35 of 39 checks when minified (`TEAVM_OBFUSCATED=true scripts/selftest`):
-  the `Long_fromNumber` patch in `web/build.gradle.kts` matches by name and the build fails, and
-  serialisation by class name breaks three save and deck checks. See [[selftest]]. Fix before
-  minifying the release.
+- [x] SelfTest passed only 35 of 39 checks minified. Fixed 2026-10-05: the long-cast patch matches by
+  body and `TObjectInputStream.allocate` no longer reads a renamed JavaScript field. 39 of 39 pass in
+  both modes. See [[selftest]].
+- [ ] Stack traces from the minified release use short names. The source map is published next to
+  `app.js` but is only used by DevTools; `webtest` prints raw traces. Nothing translates them yet.
+- [ ] CI does not run the minified SelfTest (5 min extra compile); only releases do. A change that
+  breaks minifying shows up at the release. Run `TEAVM_OBFUSCATED=true scripts/selftest` by hand
+  for changes that touch reflection, serialisation or `@JSBody` code.
+- [ ] Village names in the world are random per run, not seeded, even with `seed=1` (the layout is the
+  same). Found while comparing builds; not a minification effect.
 - [ ] The harness must not be called while the game is starting up; a queued `api state` killed
   the UI thread in a trial (`until-state` waits for the loading screen to go). Find out why.
 - [ ] The boot smoke test's allowlist hides four known error lines; remove an entry when its cause

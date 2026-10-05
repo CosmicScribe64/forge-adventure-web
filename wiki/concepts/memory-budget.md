@@ -141,8 +141,11 @@ screenshot taken) and the [[selftest]] suite (38 of 38; it uses its own build, s
 the escaped file). A gameplay save and load was not exercised: the Save button is greyed in the
 starting cave and no autosave exists there, so only the selftest save checks cover saving.
 
-Another option, not taken: minifying `app.js` (TeaVM's obfuscation) would cut the source further,
-but it changes every stack trace the test tools print. That is the owner's choice.
+> [!note] Superseded
+> The release is now minified (2026-10-05, the owner's decision), which cut the JS source string
+> from 73.9 MB to 20.9 MB at the menu, and renderer RSS from 603 to 573 MB. The cost is that stack
+> traces from the release show short names; the source map (`app.js.map`) in the site maps them
+> back in DevTools. See [[build-pipeline]] and [[metrics]].
 
 ## Dropping the packs and the card zip (2026-10-05)
 

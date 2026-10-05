@@ -51,17 +51,22 @@ Grouped by concept:
 - **Benchmark**: WFC world generation work, as `World.generateNew` does it ([[world-generation]]).
 
 ## Minified build (2026-10-05)
-`TEAVM_OBFUSCATED=true scripts/selftest` compiles SelfTest with TeaVM `obfuscated = true`
-(`web/build.gradle.kts` reads the variable only when `SELFTEST=true`; the game build stays
-unminified). The first result, to find what depends on Java names before the release is minified:
-- The build fails at the end: the `doLast` in `web/build.gradle.kts` finds `Long_fromNumber` in
-  `app.js` by name to patch it, and the name is gone. The (long) cast check then fails when
-  run on the unpatched `app.js` (`SKIP_BUILD=1`).
-- With that, 35 of 39 checks pass. The three others are serialisation by class name: the adventure
-  save values round trip (`TypeError ... reading 'data'`), the save header round trip
-  (`InvalidClassException: cannot allocate`) and the saved deck read back (`reading 'data'`).
-- Reflection (Json, ui_skin classes, textratypist effects, rules engine) passes, because
-  `reflection(...)` patterns keep those names. Nothing is fixed yet.
+`TEAVM_OBFUSCATED=true scripts/selftest` compiles SelfTest with TeaVM `obfuscated = true`. All 39 checks
+pass minified and readable (2026-10-05; the minified run takes 68 s in the page after a 5 min build).
+The first minified run (before the fixes) passed 35 and failed four:
+- The build failed at the end, because the `doLast` in `web/build.gradle.kts` matched `Long_fromNumber`
+  by name and the name was gone. With the unpatched `app.js`, the (long) cast check failed too
+  (`The number NaN cannot be converted to a BigInt`). The patch now matches by body, in both modes.
+- The adventure save round trip, the save header round trip and the saved deck read back failed in
+  `TObjectInputStream.allocate`, which created objects through the class object's JavaScript field
+  `$classInfo`. A minified build gives that field another name, so `allocate` got null: `InvalidClassException:
+  cannot allocate` for the header, and a `TypeError` on a null object for the other two. It now uses
+  TeaVM's `ClassInfo.newInstance()`. The suspicion that class names in the save format were the cause was
+  wrong: `Class.getName` and `Class.forName` return the real names minified, so the format is unchanged
+  ([[saves]]).
+- Reflection (Json, ui_skin classes, textratypist effects, rules engine) passed all along, because the
+  `reflection(...)` patterns keep those names.
+`pages.yml` runs this check before a release. `ci.yml` does not, because the extra compile costs 5 min.
 
 ## See also
 [[webtest-harness]] (the in-game counterpart)

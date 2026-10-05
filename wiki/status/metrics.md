@@ -51,6 +51,24 @@ headless Chromium with software GL (SwiftShader) and world seed 1. Measure with 
 | R9 patches, on page | 16.1 s | model reuse and flat arrays |
 | R9 workers | 6.6 s | hash `cf3e72545c906f8e` unchanged |
 
+## Minified release build (2026-10-05)
+Same machine and method as [[memory-budget]]: desktop 1280x720, headless Chromium with software GL,
+seed 1, the build before and after `TEAVM_OBFUSCATED=true` (same sources).
+| Number | Readable | Minified |
+|---|---|---|
+| `app.js` after latin1 escaping | 76,123,885 bytes | 20,533,504 bytes |
+| `app.js.gz` (gzip -9) | 6,771,249 bytes | 3,812,728 bytes |
+| `app.js.map` | none | 4,275,179 bytes (1,252,509 gzipped) |
+| Menu: JS source string (ExternalStringData in a heap snapshot) | 73.9 MB | 20.9 MB |
+| Menu: renderer RSS | 603 MB | 573 MB |
+| Menu: JS heap used | 257.0 MB | 246.4 MB |
+| Menu: ArrayBuffer backing stores | 193.7 MB | 173.6 MB |
+| Overworld (`scripts/e2e-newgame`): renderer RSS / JS heap / textures | 716 / 278.7 / 124 MB (limits comment) | 678 / 267.6 / 124.0 MB |
+| Game compile | about 7 min | 7m11s with the source map |
+| Startup to title (`scripts/e2e-boot`) | about 32 s | 37 s (one run each, noise is a few seconds) |
+The readable column for the menu was measured on a copy of the live build, which does not have the
+`allocate` fix; the fix does not touch these numbers.
+
 ## Build and test loop times
 A full game build takes about 5 min (4m20s-5m20s, with 6.5-6.6 GB peak container memory, R11).
 In SelfTest, the checks take about 35 s in the page (36 checks in R11, with the AI matches taking

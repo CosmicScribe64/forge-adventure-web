@@ -2,7 +2,7 @@
 type: decision
 status: revisit
 sources: [NOTES.md#backend-decision, PLAN.md#phase-1]
-updated: 2026-10-01
+updated: 2026-10-05
 tags: [wasm, teavm, backend]
 ---
 
@@ -22,7 +22,7 @@ analysis passes, but **code generation crashes inside TeaVM**:
 methods that can suspend. Only 8 methods fail, including TeaVM's own `Integer.parseIntImpl` and
 `Long.parseLongImpl`, libGDX's `BitmapFont.<init>` and regexodus. This is a compiler bug in the
 wasm coroutine splitter, and we can't work around it, because we need green threads. Even if it
-were fixed, JS-only pieces such as `TObjectInputStream.allocateImpl` (`@JSBody`) would need wasm
+were fixed, JS-only pieces such as `TObjectInputStream.allocateImpl` (`@JSBody`; replaced on 2026-10-05 by `ClassInfo.newInstance()`, which has no JS dependency) would have needed wasm
 variants.
 
 ## Decision

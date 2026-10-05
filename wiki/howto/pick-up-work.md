@@ -1,7 +1,7 @@
 ---
 type: howto
 sources: [README.md, PLAN.md, .github/workflows/ci.yml, .github/workflows/pages.yml, web/tools]
-updated: 2026-10-04
+updated: 2026-10-05
 tags: [onboarding, process]
 ---
 
@@ -33,8 +33,10 @@ first, how the project is run, and the conventions it follows.
   wiki lint, `update-forge`, the Forge build, `build-webdata`, `scripts/selftest` and
   `build-web`. Keep it green.
 - **Releases** publish the game. `gh release create vX.Y.Z --generate-notes` triggers
-  `.github/workflows/pages.yml`, which builds everything from scratch and deploys it to
-  https://cosmicscribe64.github.io/forge-adventure-web/ in about 8 minutes. The repository's
+  `.github/workflows/pages.yml`, which builds everything from scratch, minified and with a source
+  map, runs SelfTest, `scripts/e2e-boot` and `scripts/e2e-newgame` against the minified build, and
+  deploys it to https://cosmicscribe64.github.io/forge-adventure-web/ (the run is about 8
+  minutes longer than before: a SelfTest compile and the two scenarios). The repository's
   `github-pages` environment must allow the `main` branch and `v*` tags, or the deploy is
   rejected ([[build-pipeline]]).
 - After a release, load the live site headless and check it reaches the title screen with no
