@@ -241,11 +241,11 @@ and driver copies that this setup doesn't show. Treat 300 MB as the number to re
    and generate the larger ones on first use. This drops the 23 pages of 1024x1024 and 13 of
    the 512x512 pages: about 105 MB, with a small stall at the first use of a large size. Which
    sizes Adventure asks for needs a count first.
-2. Do not load the duel-only sprite sheets (sleeves, foils, watermark, avatars, planar
+2. (Done 2026-10-05, see "Lazy sprite sheets" below.) Do not load the duel-only sprite sheets (sleeves, foils, watermark, avatars, planar
    conquest, deckbox, setlogo, border, bg_splash) until a duel or the deck editor opens: up to
    about 100 MB. They are Forge desktop skin files, so this is a patch in how `FSkin` or
    `Assets` loads them, and icons and buttons may be needed earlier.
-3. Load the sprite sheets without mipmaps: 28 MB, and less if (2) is done. Check the look when
+3. (Partly done: the map tilesets only, see below.) Load the sprite sheets without mipmaps: 28 MB, and less if (2) is done. Check the look when
    they are drawn smaller than their size.
 4. Make the minimap a 16-bit or half-size texture: 15 to 22 MB at the overworld. It is drawn
    small, but check the map view that uses the same texture.
@@ -285,6 +285,70 @@ start were created within 0.2 s of each other), and it happens while a screen is
 
 Played on the lazy build: a new game through the tutorial, a town, the overworld, a duel
 started with the coin toss, a seven-card hand and several turns.
+
+## Lazy sprite sheets (2026-10-05)
+
+`FSkin.loadFull` read every desktop skin sheet at startup, then cut the avatar, sleeve, crack,
+border and deck box regions out of them, and `FSkinImage.load` (through `FSkinImageImpl`) made the
+region of every skin image, which loads that image's sheet. On the web (`forge.web`, so desktop
+Forge keeps its behaviour) both are now lazy, in `forge-gui-mobile/src/forge/assets/FSkin.java`
+and `FSkinImageImpl.java`:
+- `FSkin.getAvatars()`, `getSleeves()`, `getCracks()`, `getBorders()` and `getDeckbox()` each read
+  only their own sheet the first time they are called (on the UI thread, using
+  `FThreads.invokeInEdtAndWait` when called from another one). The sleeves come in two sheets
+  and adventure rewards need only sleeve 0, so a new `FSkin.getDefaultSleeve()` (used by
+  `RewardActor` and `CardSleeveImage`) reads the first sheet alone; the full `getSleeves()` map
+  is still complete because the second sheet's sleeves are numbered after the first's.
+- `FSkinImageImpl` keeps foils, old foils, watermarks, set logos, planar conquest and the border
+  props unread until `getTextureRegion()` or `draw()` is first called on one of their images.
+  Icons, abilities, mana icons, buttons and adventure sheets stay eager, because loading them
+  needs the icons pixmap or they are used at once.
+
+Nothing draws differently: the same textures with the same filters, read later. Played on the
+lazy build: a new game through the tutorial, a town, the overworld, a duel (coin toss, hand,
+casting a spell with its mana cost prompt, the players tab), then the deck editor in list and
+image view, where the watermarks (a Dimir watermark behind a card's text), frames and set
+symbols draw. Mipmaps of the skin sheets stay on: the icons, buttons and mana icon sheets are
+drawn at many sizes, I did not find a sheet that is certainly drawn at its native size, and
+turning mipmaps off would make any minified icon alias.
+Mipmaps cost 7.8 MB of the 75 MB at the menu and 12 MB at the overworld, so there is little
+left to win. The map tilesets are the exception: `TemplateTmxMapLoader` asked for mipmaps but
+sets both filters to `Nearest`, so the levels were never sampled, and it no longer creates them
+(a quarter of a tileset: 15.5 to 11.6 MB for the town and 31 to 23.3 MB for the world and town
+together).
+
+| Live textures (WebGL hook, headless, software GL, desktop 1280x720, seed 1) | Fonts lazy only (before) | Sheets lazy too (after) |
+|---|---|---|
+| Menu | 173.5 MB in 73 | 75.4 MB in 62 |
+| Town (new game, tutorial, Secluded Encampment) | 241.2 MB in 132 | 157.5 MB in 122 |
+| Overworld | 256.7 MB in 172 | 169.1 MB in 163 |
+| Duel (turn 1, separate hooked session) | 257.2 MB in 173 | 224.6 MB in 182 |
+| Deck editor (list view, from the overworld) | 272.7 MB in 183 | 185.0 MB in 174 |
+| Menu, phone 390x844 at 3x | not measured (296 MB at the start) | 73.8 MB in 60 |
+
+The "before" rows are the build after the font change; against the start of this session (296 MB
+at the menu, 349 MB at the overworld) the menu is down 220 MB and the overworld 180 MB. The deck
+editor row of the "before" run came after a duel, the "after" run went straight there, so that
+row overstates the saving a little. A duel loads most of the sheets again (55 MB more than the
+overworld), so it costs 225 MB of textures, 33 MB less than before.
+
+| Process memory (headless, software GL, seed 1, no hook) | Before (fonts lazy) | After |
+|---|---|---|
+| Menu, desktop: renderer / GPU process | 659 / 334 MB | 633 / 230 MB |
+| Overworld, desktop: renderer / GPU process | 902 / 478 MB | 905 / 377 MB |
+| Menu, phone 390x844 at 3x: renderer / GPU process | 663 / 306 MB | 631 / 217 MB |
+| Title screen reached at | 31.2 s | 22.4 s (machine load differs, indicative only) |
+
+From the start of the session (669 / 456, 916 / 596 and 667 / 435 MB) the menu GPU process is down
+226 MB on the desktop and 218 MB at phone size, and the overworld GPU process down 219 MB. The
+renderer moved little (36 MB at the desktop menu), because textures are uploaded to the GPU and
+the CPU copies are freed.
+
+What was not exercised: the sleeve and avatar pickers in the new-game or lobby screens, the
+quest and planar conquest screens (set logos and planar conquest sheets), a custom skin (these
+paths need a non-default skin directory, which the web build doesn't have), and foil cards.
+The first duel now reads about 33 MB of sheets while the transition screen is showing; its
+cost was not timed.
 
 ## Findings for phones (2026-10-01)
 

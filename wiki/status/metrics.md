@@ -25,8 +25,8 @@ headless Chromium with software GL (SwiftShader) and world seed 1. Measure with 
 | ArrayBuffers at world | 627 MB (libGDX wasm heap 331 MB) | wasm heap 133 MB | [[memory-budget]] |
 | Live pixmaps at title | 246 MB | 7 MB | [[memory-budget]] |
 | Renderer process at world | 1.46 GB | about 0.90 GB (2026-10-05, fonts on first use, music streamed, one-byte `app.js` source and card zip and packs dropped after use; 0.96 GB before the last change) | [[memory-budget]] |
-| GPU process at the main menu | 472 MB (2026-10-01) | 334 MB desktop, 306 MB phone size; 174 MB of that is live textures (2026-10-05, font sizes made on first use; 456 and 435 MB, 296 MB of textures, before) | [[memory-budget]] |
-| Renderer process at the main menu | 817 MB (2026-10-01) | 659 MB desktop, 663 MB phone size (2026-10-05, music streamed, fonts on first use, `app.js` source as one-byte text and packs dropped after startup; 669 and 667 MB before the font change) | [[memory-budget]] |
+| GPU process at the main menu | 472 MB (2026-10-01) | 230 MB desktop, 217 MB phone size; 75 MB of that is live textures (2026-10-05, font sizes and duel-only sprite sheets read on first use; 456 and 435 MB, 296 MB of textures, before) | [[memory-budget]] |
+| Renderer process at the main menu | 817 MB (2026-10-01) | 633 MB desktop, 631 MB phone size (2026-10-05, music streamed, fonts and sprite sheets on first use, `app.js` source as one-byte text and packs dropped after startup; 669 and 667 MB before the font change) | [[memory-budget]] |
 | GPU process | 743 MB (software GL) | not re-measured | |
 | Worst frame at duel start | 1.7-2 s | 0.83 s (the rest is `Match.startGame` and the first duel frame) | [[bug-catalog]] |
 | Card DB load | about 10 s for 33,980 cards (R5) | about 6.5 s in the game ("Loading cards from archive"); in SelfTest, scripts went from 4.3 to 1.6 s and the card database from 12 to 5.6 s (R11) | [[startup-and-loading]] |

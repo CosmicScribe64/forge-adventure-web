@@ -602,9 +602,18 @@ index e1d6824b..ef37e7f3 100644
          }
  
 diff --git a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
-index d0aec6b3..e2f8f8c6 100644
+index d0aec6b3..492e4e5e 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
 +++ b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
+@@ -280,7 +280,7 @@ public class RewardActor extends Actor implements Disposable, ImageFetcher.Callb
+ 
+ 
+         if (backTexture == null) {
+-            backTexture = FSkin.getSleeves().get(0);
++            backTexture = FSkin.getDefaultSleeve();
+         }
+         switch (reward.type) {
+             case Card: {
 @@ -748,31 +748,10 @@ public class RewardActor extends Actor implements Disposable, ImageFetcher.Callb
              newH = boundH;
              newW = (newH * origW) / origH;
@@ -662,7 +671,7 @@ index d0aec6b3..e2f8f8c6 100644
          projectionMat.setToProjection(Math.abs(near), Math.abs(far), fov, aspect);
          viewMat.setToLookAt(projPosVec, projPosVec.cpy().add(projDirectionVec), projUpVec);
 diff --git a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
-index 6be2bfd0..63033c73 100644
+index 6be2bfd0..487309cf 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
 +++ b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
 @@ -2,9 +2,18 @@ package forge.adventure.util;
@@ -684,6 +693,15 @@ index 6be2bfd0..63033c73 100644
  import com.badlogic.gdx.maps.tiled.TmxMapLoader;
  import com.badlogic.gdx.utils.*;
  import forge.Forge;
+@@ -26,7 +35,7 @@ public class TemplateTmxMapLoader extends TmxMapLoader {
+         FileHandle tmxFile = new FileHandle(f);
+ 
+         this.root = xml.parse(tmxFile);
+-        parameter.generateMipMaps=true;
++        parameter.generateMipMaps=false; // the filters below are Nearest, so the mip levels were never sampled
+         parameter.textureMinFilter = Texture.TextureFilter.Nearest;
+         parameter.textureMagFilter = Texture.TextureFilter.Nearest;
+         final Array<FileHandle> textureFiles = getDependencyFileHandles(tmxFile);
 @@ -38,9 +47,50 @@ public class TemplateTmxMapLoader extends TmxMapLoader {
  
          TiledMap map = loadTiledMap(tmxFile, parameter, new ImageResolver.DirectImageResolver(Forge.getAssets().tmxMap()));
@@ -1149,6 +1167,367 @@ index 47066dec..1a1a3e34 100644
              System.out.println("Generating world took :\t\t" + ((System.currentTimeMillis() - startTime) / 1000f) + " s");
              WorldStage.getInstance().clearCache();
  
+diff --git a/forge-gui-mobile/src/forge/assets/FSkin.java b/forge-gui-mobile/src/forge/assets/FSkin.java
+index 964cb212..068fdd80 100644
+--- a/forge-gui-mobile/src/forge/assets/FSkin.java
++++ b/forge-gui-mobile/src/forge/assets/FSkin.java
+@@ -299,24 +299,15 @@ public class FSkin {
+         final FileHandle f1 = getDefaultSkinFile(ForgeConstants.SPRITE_ICONS_FILE);
+         final FileHandle f2 = getSkinFile(ForgeConstants.SPRITE_ICONS_FILE);
+         final FileHandle f3 = getDefaultSkinFile(ForgeConstants.SPRITE_FOILS_FILE);
+-        final FileHandle f4 = getDefaultSkinFile(ForgeConstants.SPRITE_AVATARS_FILE);
+-        final FileHandle f5 = getSkinFile(ForgeConstants.SPRITE_AVATARS_FILE);
+         final FileHandle f6 = getDefaultSkinFile(ForgeConstants.SPRITE_OLD_FOILS_FILE);
+         final FileHandle f7 = getDefaultSkinFile(ForgeConstants.SPRITE_MANAICONS_FILE);
+         //final FileHandle f7b = getDefaultSkinFile(ForgeConstants.SPRITE_PHYREXIAN_FILE);
+         //final FileHandle f7c = getDefaultSkinFile(ForgeConstants.SPRITE_COLORLESS_HYBRID_FILE);
+-        final FileHandle f8 = getDefaultSkinFile(ForgeConstants.SPRITE_SLEEVES_FILE);
+-        final FileHandle f9 = getDefaultSkinFile(ForgeConstants.SPRITE_SLEEVES2_FILE);
+-        final FileHandle f10 = getDefaultSkinFile(ForgeConstants.SPRITE_BORDER_FILE);
+         final FileHandle f11 = getSkinFile(ForgeConstants.SPRITE_BUTTONS_FILE);
+         final FileHandle f11b = getDefaultSkinFile(ForgeConstants.SPRITE_BUTTONS_FILE);
+         final FileHandle f12 = getSkinFile(ForgeConstants.SPRITE_START_FILE);
+         final FileHandle f12b = getDefaultSkinFile(ForgeConstants.SPRITE_START_FILE);
+-        final FileHandle f13 = getDefaultSkinFile(ForgeConstants.SPRITE_DECKBOX_FILE);
+-        final FileHandle f17 = getDefaultSkinFile(ForgeConstants.SPRITE_CRACKS_FILE);
+         final FileHandle f19 = getDefaultSkinFile(ForgeConstants.SPRITE_CURSOR_FILE);
+-        final FileHandle f20 = getSkinFile(ForgeConstants.SPRITE_SLEEVES_FILE);
+-        final FileHandle f21 = getSkinFile(ForgeConstants.SPRITE_SLEEVES2_FILE);
+         final FileHandle f22 = getDefaultSkinFile(ForgeConstants.SPRITE_ADV_BUTTONS_FILE);
+         final FileHandle f23 = getSkinFile(ForgeConstants.SPRITE_ADV_BUTTONS_FILE);
+ 
+@@ -343,8 +334,10 @@ public class FSkin {
+                 preferredIcons = new Pixmap(f2);
+             }
+ 
+-            Forge.getAssets().loadTexture(f3);
+-            Forge.getAssets().loadTexture(f6);
++            if (!LAZY_SPRITES) { // lazy: FSkinImageImpl reads the foil sheets when a foil is drawn
++                Forge.getAssets().loadTexture(f3);
++                Forge.getAssets().loadTexture(f6);
++            }
+             Forge.getAssets().loadTexture(f7, new TextureLoader.TextureParameter(){{genMipMaps = true;}});
+ 
+             //hdbuttons
+@@ -413,129 +406,12 @@ public class FSkin {
+                 }
+             }
+ 
+-            //assemble avatar textures
+-            int counter = 0;
+-            int scount = 0;
+-            Color pxTest;
+-            Pixmap pxDefaultAvatars, pxPreferredAvatars, pxDefaultSleeves, pxPreferredSleeves;
+-
+-            pxDefaultAvatars = new Pixmap(f4);
+-            pxDefaultSleeves = new Pixmap(f8);
+-            //default avatar
+-            Forge.getAssets().loadTexture(f4);
+-            //sleeves first set
+-            Forge.getAssets().loadTexture(f8);
+-            //preferred avatar
+-            if (f5.exists()) {
+-                pxPreferredAvatars = new Pixmap(f5);
+-                Forge.getAssets().loadTexture(f5);
+-
+-                final int pw = pxPreferredAvatars.getWidth();
+-                final int ph = pxPreferredAvatars.getHeight();
+-
+-                for (int j = 0; j < ph; j += 100) {
+-                    for (int i = 0; i < pw; i += 100) {
+-                        if (i == 0 && j == 0) { continue; }
+-                        pxTest = new Color(pxPreferredAvatars.getPixel(i + 50, j + 50));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().avatars().put(counter++, new TextureRegion(Forge.getAssets().getTexture(f5), i, j, 100, 100));
+-                    }
+-                }
+-                pxPreferredAvatars.dispose();
+-            } else if (!FSkin.preferredName.isEmpty()){
+-                //workaround bug crash fix if missing sprite avatar on preferred theme for quest tournament...
+-                //i really don't know why it needs to populate the avatars twice.... needs investigation
+-                final int pw = pxDefaultAvatars.getWidth();
+-                final int ph = pxDefaultAvatars.getHeight();
+-
+-                for (int j = 0; j < ph; j += 100) {
+-                    for (int i = 0; i < pw; i += 100) {
+-                        if (i == 0 && j == 0) { continue; }
+-                        pxTest = new Color(pxDefaultAvatars.getPixel(i + 50, j + 50));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().avatars().put(counter++, new TextureRegion(Forge.getAssets().getTexture(f4), i, j, 100, 100));
+-                    }
+-                }
+-            }
+-            if (f20.exists()) {
+-                pxPreferredSleeves = new Pixmap(f20);
+-                Forge.getAssets().loadTexture(f20);
+-
+-                final int sw = pxPreferredSleeves.getWidth();
+-                final int sh = pxPreferredSleeves.getHeight();
+-
+-                for (int j = 0; j < sh; j += 500) {
+-                    for (int i = 0; i < sw; i += 360) {
+-                        pxTest = new Color(pxPreferredSleeves.getPixel(i + 180, j + 250));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().sleeves().put(scount++, new TextureRegion(Forge.getAssets().getTexture(f20), i, j, 360, 500));
+-                    }
+-                }
+-                pxPreferredSleeves.dispose();
+-            } else {
+-                final int sw = pxDefaultSleeves.getWidth();
+-                final int sh = pxDefaultSleeves.getHeight();
+-
+-                for (int j = 0; j < sh; j += 500) {
+-                    for (int i = 0; i < sw; i += 360) {
+-                        pxTest = new Color(pxDefaultSleeves.getPixel(i + 180, j + 250));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().sleeves().put(scount++, new TextureRegion(Forge.getAssets().getTexture(f8), i, j, 360, 500));
+-                    }
+-                }
+-            }
+-            if (f21.exists()) {
+-                pxPreferredSleeves = new Pixmap(f21);
+-                Forge.getAssets().loadTexture(f21);
+-
+-                final int sw = pxPreferredSleeves.getWidth();
+-                final int sh = pxPreferredSleeves.getHeight();
+-
+-                for (int j = 0; j < sh; j += 500) {
+-                    for (int i = 0; i < sw; i += 360) {
+-                        pxTest = new Color(pxPreferredSleeves.getPixel(i + 180, j + 250));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().sleeves().put(scount++, new TextureRegion(Forge.getAssets().getTexture(f21), i, j, 360, 500));
+-                    }
+-                }
+-                pxPreferredSleeves.dispose();
+-            } else {
+-                //re init second set of sleeves
+-                pxDefaultSleeves = new Pixmap(f9);
+-                Forge.getAssets().loadTexture(f9);
+-
+-                final int sw2 = pxDefaultSleeves.getWidth();
+-                final int sh2 = pxDefaultSleeves.getHeight();
+-
+-                for (int j = 0; j < sh2; j += 500) {
+-                    for (int i = 0; i < sw2; i += 360) {
+-                        pxTest = new Color(pxDefaultSleeves.getPixel(i + 180, j + 250));
+-                        if (pxTest.a == 0) { continue; }
+-                        Forge.getAssets().sleeves().put(scount++, new TextureRegion(Forge.getAssets().getTexture(f9), i, j, 360, 500));
+-                    }
+-                }
++            // Avatars, sleeves, cracks, borders and deck boxes only matter to duels and the deck
++            // editor. On the web they are read the first time one of the getters below asks.
++            avatarsLoaded = sleeves1Loaded = sleeves2Loaded = cracksLoaded = bordersLoaded = deckboxLoaded = false;
++            if (!LAZY_SPRITES) {
++                loadAllSprites();
+             }
+-
+-            //cracks
+-            Forge.getAssets().loadTexture(f17);
+-            int crackCount = 0;
+-            for (int j = 0; j < 4; j++) {
+-                int x = j * 200;
+-                Forge.getAssets().cracks().put(crackCount++, new TextureRegion(Forge.getAssets().getTexture(f17), x, 0, 200, 279));
+-            }
+-
+-            //borders
+-            Forge.getAssets().loadTexture(f10);
+-            Forge.getAssets().borders().put(0, new TextureRegion(Forge.getAssets().getTexture(f10), 2, 2, 672, 936));
+-            Forge.getAssets().borders().put(1, new TextureRegion(Forge.getAssets().getTexture(f10), 676, 2, 672, 936));
+-            //deckboxes
+-            Forge.getAssets().loadTexture(f13);
+-            //gold bg
+-            Forge.getAssets().deckbox().put(0, new TextureRegion(Forge.getAssets().getTexture(f13), 2, 2, 488, 680));
+-            //deck box for card art
+-            Forge.getAssets().deckbox().put(1, new TextureRegion(Forge.getAssets().getTexture(f13), 492, 2, 488, 680));
+-            //generic deck box
+-            Forge.getAssets().deckbox().put(2, new TextureRegion(Forge.getAssets().getTexture(f13), 982, 2, 488, 680));
+             //cursor
+             Forge.getAssets().loadTexture(f19);
+             Forge.getAssets().cursor().put(0, new TextureRegion(Forge.getAssets().getTexture(f19), 0, 0, 32, 32)); //default
+@@ -550,8 +426,6 @@ public class FSkin {
+             FProgressBar.ADV_SEL_FORE_COLOR = new Color(adventureButtons.getPixel(FSkinColor.Colors.ADV_CLR_BORDERS.getX(), FSkinColor.Colors.ADV_CLR_BORDERS.getY()));
+ 
+             preferredIcons.dispose();
+-            pxDefaultAvatars.dispose();
+-            pxDefaultSleeves.dispose();
+             adventureButtons.dispose();
+         }
+         catch (final Exception e) {
+@@ -571,6 +445,140 @@ public class FSkin {
+         }
+     }
+ 
++    /**
++     * Whether the sprite sheets that only duels, the deck editor and some card views draw from
++     * (avatars, sleeves, cracks, borders, deck boxes; and foils, watermarks, set logos and planar
++     * conquest through {@link FSkinImageImpl}) are read on first use rather than by loadFull. Each is
++     * a texture with mipmaps (about 100 MB together), which a phone browser can't spare while the
++     * player is still in the menus or on the map.
++     */
++    static final boolean LAZY_SPRITES = Boolean.getBoolean("forge.web");
++    private static boolean avatarsLoaded, sleeves1Loaded, sleeves2Loaded, cracksLoaded, bordersLoaded, deckboxLoaded;
++    private static int sleeves1Count; // the second sheet's sleeves are numbered after the first's
++
++    private static void loadAllSprites() {
++        loadAvatars();
++        loadSleeves(true);
++        loadSleeves(false);
++        loadCracks();
++        loadBorders();
++        loadDeckbox();
++    }
++
++    /** Runs a texture-making step on the UI thread, which a getter called from a game thread may not be. */
++    private static void onUiThread(Runnable loader) {
++        if (FThreads.isGuiThread()) {
++            loader.run();
++        } else {
++            FThreads.invokeInEdtAndWait(loader);
++        }
++    }
++
++    private static void loadAvatars() {
++        if (avatarsLoaded) { return; }
++        avatarsLoaded = true;
++        final FileHandle f4 = getDefaultSkinFile(ForgeConstants.SPRITE_AVATARS_FILE);
++        final FileHandle f5 = getSkinFile(ForgeConstants.SPRITE_AVATARS_FILE);
++        try {
++            //preferred avatar, else the default (unless the default skin is the preferred one)
++            final FileHandle file = f5.exists() ? f5 : (!FSkin.preferredName.isEmpty() ? f4 : null);
++            if (file == null) { return; }
++            Forge.getAssets().loadTexture(file);
++            final Pixmap px = new Pixmap(file);
++            final int pw = px.getWidth();
++            final int ph = px.getHeight();
++            int counter = 0;
++            for (int j = 0; j < ph; j += 100) {
++                for (int i = 0; i < pw; i += 100) {
++                    if (i == 0 && j == 0) { continue; }
++                    if (new Color(px.getPixel(i + 50, j + 50)).a == 0) { continue; }
++                    Forge.getAssets().avatars().put(counter++, new TextureRegion(Forge.getAssets().getTexture(file), i, j, 100, 100));
++                }
++            }
++            px.dispose();
++        }
++        catch (final Exception e) {
++            System.err.println("FSkin$loadAvatars: Missing the avatars sprite.");
++        }
++    }
++
++    /** The first sheet holds sleeve 0; the second continues the numbering. */
++    private static void loadSleeves(final boolean first) {
++        if (first ? sleeves1Loaded : sleeves2Loaded) { return; }
++        if (!first) { loadSleeves(true); }
++        if (first) { sleeves1Loaded = true; } else { sleeves2Loaded = true; }
++        final FileHandle preferred = getSkinFile(first ? ForgeConstants.SPRITE_SLEEVES_FILE : ForgeConstants.SPRITE_SLEEVES2_FILE);
++        final FileHandle file = preferred.exists() ? preferred
++                : getDefaultSkinFile(first ? ForgeConstants.SPRITE_SLEEVES_FILE : ForgeConstants.SPRITE_SLEEVES2_FILE);
++        try {
++            Forge.getAssets().loadTexture(file);
++            final Pixmap px = new Pixmap(file);
++            final int sw = px.getWidth();
++            final int sh = px.getHeight();
++            int scount = first ? 0 : sleeves1Count;
++            for (int j = 0; j < sh; j += 500) {
++                for (int i = 0; i < sw; i += 360) {
++                    if (new Color(px.getPixel(i + 180, j + 250)).a == 0) { continue; }
++                    Forge.getAssets().sleeves().put(scount++, new TextureRegion(Forge.getAssets().getTexture(file), i, j, 360, 500));
++                }
++            }
++            if (first) { sleeves1Count = scount; }
++            px.dispose();
++        }
++        catch (final Exception e) {
++            System.err.println("FSkin$loadSleeves: Missing a sleeves sprite.");
++        }
++    }
++
++    private static void loadCracks() {
++        if (cracksLoaded) { return; }
++        cracksLoaded = true;
++        try {
++            final FileHandle f17 = getDefaultSkinFile(ForgeConstants.SPRITE_CRACKS_FILE);
++            Forge.getAssets().loadTexture(f17);
++            int crackCount = 0;
++            for (int j = 0; j < 4; j++) {
++                int x = j * 200;
++                Forge.getAssets().cracks().put(crackCount++, new TextureRegion(Forge.getAssets().getTexture(f17), x, 0, 200, 279));
++            }
++        }
++        catch (final Exception e) {
++            System.err.println("FSkin$loadCracks: Missing the cracks sprite.");
++        }
++    }
++
++    private static void loadBorders() {
++        if (bordersLoaded) { return; }
++        bordersLoaded = true;
++        try {
++            final FileHandle f10 = getDefaultSkinFile(ForgeConstants.SPRITE_BORDER_FILE);
++            Forge.getAssets().loadTexture(f10);
++            Forge.getAssets().borders().put(0, new TextureRegion(Forge.getAssets().getTexture(f10), 2, 2, 672, 936));
++            Forge.getAssets().borders().put(1, new TextureRegion(Forge.getAssets().getTexture(f10), 676, 2, 672, 936));
++        }
++        catch (final Exception e) {
++            System.err.println("FSkin$loadBorders: Missing the border sprite.");
++        }
++    }
++
++    private static void loadDeckbox() {
++        if (deckboxLoaded) { return; }
++        deckboxLoaded = true;
++        try {
++            final FileHandle f13 = getDefaultSkinFile(ForgeConstants.SPRITE_DECKBOX_FILE);
++            Forge.getAssets().loadTexture(f13);
++            //gold bg
++            Forge.getAssets().deckbox().put(0, new TextureRegion(Forge.getAssets().getTexture(f13), 2, 2, 488, 680));
++            //deck box for card art
++            Forge.getAssets().deckbox().put(1, new TextureRegion(Forge.getAssets().getTexture(f13), 492, 2, 488, 680));
++            //generic deck box
++            Forge.getAssets().deckbox().put(2, new TextureRegion(Forge.getAssets().getTexture(f13), 982, 2, 488, 680));
++        }
++        catch (final Exception e) {
++            System.err.println("FSkin$loadDeckbox: Missing the deck box sprite.");
++        }
++    }
++
+     /**
+      * Gets the name.
+      * 
+@@ -644,22 +652,33 @@ public class FSkin {
+     }
+ 
+     public static Map<Integer, TextureRegion> getAvatars() {
++        onUiThread(FSkin::loadAvatars);
+         return Forge.getAssets().avatars();
+     }
+ 
+     public static Map<Integer, TextureRegion> getSleeves() {
++        onUiThread(() -> loadSleeves(false));
+         return Forge.getAssets().sleeves();
+     }
+ 
++    /** The default card back, which is all that adventure rewards need of the sleeves sprites. */
++    public static TextureRegion getDefaultSleeve() {
++        onUiThread(() -> loadSleeves(true));
++        return Forge.getAssets().sleeves().get(0);
++    }
++
+     public static Map<Integer, TextureRegion> getCracks() {
++        onUiThread(FSkin::loadCracks);
+         return Forge.getAssets().cracks();
+     }
+ 
+     public static Map<Integer, TextureRegion> getBorders() {
++        onUiThread(FSkin::loadBorders);
+         return Forge.getAssets().borders();
+     }
+ 
+     public static Map<Integer, TextureRegion> getDeckbox() {
++        onUiThread(FSkin::loadDeckbox);
+         return Forge.getAssets().deckbox();
+     }
+ 
 diff --git a/forge-gui-mobile/src/forge/assets/FSkinFont.java b/forge-gui-mobile/src/forge/assets/FSkinFont.java
 index 7bbecf2a..a5cd7f2a 100644
 --- a/forge-gui-mobile/src/forge/assets/FSkinFont.java
@@ -1188,6 +1567,100 @@ index 7bbecf2a..a5cd7f2a 100644
  
                      Array<TextureRegion> textureRegions = new Array<>();
                      for (int i = 0; i < pages.size; i++) {
+diff --git a/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java b/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
+index 1d317fa1..6fa8987d 100644
+--- a/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
++++ b/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
+@@ -15,6 +15,7 @@ public class FSkinImageImpl implements FSkinImageInterface {
+     private final int x, y, w, h;
+     FSkinProp skinProp;
+     private TextureRegion textureRegion;
++    private boolean pending;
+ 
+ 	FSkinImageImpl(FSkinProp skinProp0) {
+         int[] coords = skinProp0.getCoords();
+@@ -26,7 +27,44 @@ public class FSkinImageImpl implements FSkinImageInterface {
+ 	}
+ 	
+ 
++    /**
++     * Sprite sheets that only duels, the deck editor and card rendering draw from. With
++     * {@link FSkin#LAZY_SPRITES} their textures are read on the first use of an image instead of
++     * at startup. None of them is an icon sheet, so loading later needs no pixmap.
++     */
++    private static boolean isLazySheet(FSkinProp.PropType type) {
++        switch (type) {
++            case FOIL:
++            case OLD_FOIL:
++            case WATERMARKS:
++            case BORDERS:
++            case SETLOGO:
++            case PLANAR_CONQUEST:
++                return true;
++            default:
++                return false;
++        }
++    }
++
+     public void load(Pixmap preferredIcons) {
++        if (FSkin.LAZY_SPRITES && isLazySheet(skinProp.getType())) {
++            textureRegion = null;
++            pending = true;
++            return;
++        }
++        pending = false;
++        loadNow(preferredIcons);
++    }
++
++    private TextureRegion region() {
++        if (pending) {
++            pending = false;
++            loadNow(null); // lazy sheets never read the icons pixmap
++        }
++        return textureRegion;
++    }
++
++    private void loadNow(Pixmap preferredIcons) {
+         FSkinProp.PropType type = skinProp.getType();
+         String filename = type.getFilename();
+         if (filename == null) {
+@@ -134,7 +172,7 @@ public class FSkinImageImpl implements FSkinImageInterface {
+ 
+     @Override
+     public TextureRegion getTextureRegion() {
+-        return textureRegion;
++        return region();
+     }
+ 
+     @Override
+@@ -149,6 +187,6 @@ public class FSkinImageImpl implements FSkinImageInterface {
+ 
+     @Override
+     public void draw(Graphics g, float x, float y, float w, float h) {
+-        g.drawImage(textureRegion, x, y, w, h);
++        g.drawImage(region(), x, y, w, h);
+     }
+ }
+diff --git a/forge-gui-mobile/src/forge/card/CardSleeveImage.java b/forge-gui-mobile/src/forge/card/CardSleeveImage.java
+index 87c6f742..c08dc73f 100644
+--- a/forge-gui-mobile/src/forge/card/CardSleeveImage.java
++++ b/forge-gui-mobile/src/forge/card/CardSleeveImage.java
+@@ -29,13 +29,13 @@ public class CardSleeveImage implements FImage {
+ 
+     @Override
+     public float getWidth() {
+-        final TextureRegion s = FSkin.getSleeves().get(0);
++        final TextureRegion s = FSkin.getDefaultSleeve();
+         return s != null ? s.getRegionWidth() : 360f;
+     }
+ 
+     @Override
+     public float getHeight() {
+-        final TextureRegion s = FSkin.getSleeves().get(0);
++        final TextureRegion s = FSkin.getDefaultSleeve();
+         return s != null ? s.getRegionHeight() : 500f;
+     }
+ 
 diff --git a/forge-gui-mobile/src/forge/screens/TransitionScreen.java b/forge-gui-mobile/src/forge/screens/TransitionScreen.java
 index 8757ba80..18cbb889 100644
 --- a/forge-gui-mobile/src/forge/screens/TransitionScreen.java

@@ -246,3 +246,17 @@ Next steps:
   process 456 to 334 MB (desktop), 435 to 306 MB (phone size); renderer 669 to 659 and 667 to 663
   MB; the "Loading fonts" startup stage 3.2 to 0 s.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].
+
+## [2026-10-05] fix | Duel-only sprite sheets read on first use (memory plan, GPU step 2)
+- Read `FSkin`, `FSkinImageImpl`, `Assets` and every caller of the avatar, sleeve, crack, border
+  and deck box maps before changing anything. They are all reached through five `FSkin` getters,
+  so `patches/forge-web.patch` now makes each read its own sheet on first call (guarded by
+  `forge.web`), adds `FSkin.getDefaultSleeve()` so adventure rewards load one sleeve sheet instead
+  of two, and makes foil, watermark, set logo, planar conquest and border images read their sheet
+  when first drawn. The map tilesets no longer build mipmaps (their filters are Nearest).
+- Live textures: menu 173.5 to 75.4 MB (desktop), 73.8 MB at phone size; overworld 256.7 to
+  169.1 MB; duel 257.2 to 224.6 MB. GPU process: menu 334 to 230 MB, overworld 478 to 377 MB,
+  phone menu 306 to 217 MB. Renderer menu 659 to 633 MB. Skin sheet mipmaps left on, with the
+  reason. Selftest 39 of 39. A duel, the deck editor (list and image view) and the tutorial were
+  played and looked the same; pickers, foils and custom skins were not exercised.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].
