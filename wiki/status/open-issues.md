@@ -87,9 +87,12 @@ See [[webtest-harness]].
 - [ ] Other test-plan steps (JVM unit tests, game scenarios, memory thresholds) are not started.
 
 ## Found 2026-10-05, not fixed
-- [ ] The wasm pixmap heap grows by 31 MB at a second new game and stays after loading a save
-  (`forgePixmaps.heapMB` 40, then 71, 72), so the previous world's `biomeImage` may not be
-  disposed. Check `World.dispose` and `WorldSave` replacement. See [[memory-budget]].
+- [x] The wasm pixmap heap grew by 31 MB per new game and textures by 11.7 MB (the old `biomeImage`
+  and `TiledMap` were never disposed). Fixed 2026-10-05 in `patches/forge-web.patch`; see
+  [[memory-budget]] and [[bug-catalog]].
+- [ ] A small leak remains: about 1 MB of wasm pixmap heap and 0.4 MB of textures per new game
+  (one live pixmap more each time, found by comparing `forgePixmaps.live` across games). Its owner
+  is not known; `scripts/e2e-cycle` allows 5 MB of growth over two extra games.
 - [ ] The `scripts/e2e-newgame` limits are 1.25 times the measured values, so the 889 MB overworld
   RSS from before the worker change would still pass the 895 MB limit. Tighten them when the numbers settle.
 - [ ] `scripts/e2e-newgame` is not in CI (74 s on top of a build); see [[webtest-harness]].

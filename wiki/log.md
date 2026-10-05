@@ -326,3 +326,13 @@ Next steps:
   has started to fade, and from then on reports don't move the bar, so whether it reached 100%
   depended on timing. `forgeLoadingDone` in `web/html/index.html` now sets the bar to 100% before
   the fade. The earlier passing runs were timing luck.
+
+## [2026-10-05] fix | New games leaked the previous world
+- Each new game kept the old `World.biomeImage` (31 MB of wasm pixmap heap) and `TileMapScene` never
+  disposed its previous `TiledMap` (11.7 MB of textures per new game; also on load). Two patches in
+  `patches/forge-web.patch`, without a web guard. Before: pixmap heap 7, 40, 71, 102 MB and textures
+  124.0, 135.7, 147.3 MB over the menu and three games. After (overworld, after the tutorial): 40, 41,
+  42 MB and 157.5, 157.9, 158.4 MB. Minimap and map screen checked after each game and after a load; towns,
+  a dungeon and a duel checked after the fix. Added `scripts/e2e-cycle` (232 s). e2e-boot, e2e-newgame and
+  SelfTest (39/39) pass.
+- Pages touched: [[memory-budget]], [[bug-catalog]], [[open-issues]], [[webtest-harness]].

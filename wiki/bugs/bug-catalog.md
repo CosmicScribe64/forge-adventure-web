@@ -57,6 +57,7 @@ is filed.
 | VS screen font scale depends only on aspect ratio | names too big or off screen in smaller windows | patch shrinks the names to fit | yes, small screens |
 | `ScreenUtil` sizes captures once, and the thumbnail is read outside a frame | black save thumbnails (WebGL clears the buffer), and a stale size after a resize | `preserveDrawingBuffer`, and a patch makes `ScreenUtil` follow the screen size | the size bug, after a desktop resize |
 | Fixed screen size taken in `create()` | black screen when started hidden | canvas sizing ([[screen-layout]]) | n/a |
+| `World.generateNew` replaces `biomeImage` (the 2800x2800 minimap pixmap, 31 MB) without disposing the previous one, and `TileMapScene` replaces its `TiledMap` on every town or dungeon entry without disposing the previous map, whose tilesets the loader loaded again as new textures (the main tileset is 10 MB) | each new game kept 31 MB of wasm pixmap heap and 11.7 MB of textures for good; loading a save leaked the previous map the same way (2026-10-05, seed 1, headless) | patch disposes the old image in `generateNew` and the previous map in `TileMapScene.load` after the renderer switch; no web guard, so it is an upstream candidate | yes |
 
 ## Our own, with general lessons
 

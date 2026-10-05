@@ -18,6 +18,8 @@ Steps (separated by ';'):
                            goto NAME, click TEXT, duel, ok, cancel, play CARD, player NAME, ...
   until <text> <seconds>   wait until a console line contains <text> (fails after <seconds>)
   expect <js expression>   fail the run (exit code 1) unless the expression is truthy in the page
+  until-new <text> <seconds>
+                           like until, but only console lines logged after this step starts count
   until-state <cond> <seconds>
                            once the loading screen is gone, poll the harness's `api state` once a
                            second until the JavaScript
@@ -26,10 +28,12 @@ Steps (separated by ';'):
   no-errors                fail the run (exit code 1) if the page has logged an unexpected error
   measure <name>           garbage-collect, then record renderer RSS, JS heap and (with
                            --init-script web/tools/glhook.js) live WebGL texture memory, all in MB,
-                           under <name> and print them
+                           under <name> and print them (pix is the wasm pixmap heap, window.forgePixmaps.heapMB)
   assert-max <name>.<field> <limit>
                            fail the run unless a value recorded by `measure` is at most <limit>
-                           (fields: rss, heap, tex, gpu)
+                           (fields: rss, heap, tex, gpu, pix)
+  assert-growth <name>.<field> <name2>.<field> <margin>
+                           fail the run unless the second measurement is at most <margin> above the first
   no-repeat-downloads [<min MB>]
                            fail the run if a file of <min MB> (default 1) or more was requested
                            more than once with the same URL and Range header
@@ -534,14 +538,16 @@ def main():
                             dbg.send("Debugger.resume")
                         dbg.send("Debugger.setPauseOnExceptions", {"state": "none"})
                     print(f"exceptions: {out_path}")
-                elif cmd == "until":
+                elif cmd in ("until", "until-new"):
+                    # until-new only looks at console lines logged after the step starts (for a
+                    # line that an earlier part of the run has already produced once).
                     needle, limit = parts[1], float(parts[2])
-                    seen = len(lines)
+                    seen = len(lines) if cmd == "until-new" else 0
                     end = time.time() + limit
                     found = False
                     while time.time() < end and not found:
                         pump(1)
-                        found = any(needle in l for l in lines)
+                        found = any(needle in l for l in lines[seen:])
                     print(f"until '{needle}': {'found' if found else 'NOT FOUND'} after {time.time() - (end - limit):.0f}s")
                     if not found:
                         sys.exit(2)
@@ -580,7 +586,10 @@ def main():
                     usage = cdp.send("Runtime.getHeapUsage")
                     stats = chromium_stats()
                     gl = page.evaluate("() => window.__gl ? window.__gl.summary(0) : null")
+                    pm = page.evaluate("() => window.forgePixmaps || null")
                     measured[parts[1]] = {
+                        "pix": pm["heapMB"] if pm else None,
+                        "pixlive": pm["live"] if pm else None,
                         "rss": round(stats.get("renderer", (0, 0))[0]),
                         "gpu": round(stats.get("gpu", (0, 0))[0]),
                         "heap": round(usage["usedSize"] / 1048576, 1),
@@ -588,7 +597,8 @@ def main():
                     }
                     print(f"measure {parts[1]}: renderer rss {measured[parts[1]]['rss']} MB, js heap "
                           f"{measured[parts[1]]['heap']} MB, texture {measured[parts[1]]['tex']} MB, "
-                          f"gpu rss {measured[parts[1]]['gpu']} MB", flush=True)
+                          f"gpu rss {measured[parts[1]]['gpu']} MB, wasm pixmap heap {measured[parts[1]]['pix']} MB "
+                          f"({measured[parts[1]]['pixlive']} live)", flush=True)
                 elif cmd == "assert-max":
                     name, field = parts[1].split(".")
                     limit = float(parts[2])
@@ -599,6 +609,18 @@ def main():
                     if value > limit:
                         fail(f"assert-max {parts[1]}: {value} MB is above the limit {limit:g} MB")
                     print(f"assert-max ok: {parts[1]} {value} <= {limit:g} MB", flush=True)
+                elif cmd == "assert-growth":
+                    a_name, field = parts[1].split(".")
+                    b_name, field2 = parts[2].split(".")
+                    margin = float(parts[3])
+                    a = measured.get(a_name, {}).get(field)
+                    b = measured.get(b_name, {}).get(field2)
+                    if a is None or b is None:
+                        fail(f"assert-growth {parts[1]} {parts[2]}: missing measurement")
+                    elif b - a > margin:
+                        fail(f"assert-growth: {parts[2]} is {b - a:g} above {parts[1]} (limit {margin:g})")
+                    else:
+                        print(f"assert-growth ok: {parts[2]} - {parts[1]} = {b - a:g} (limit {margin:g})", flush=True)
                 elif cmd == "no-repeat-downloads":
                     min_bytes = float(parts[1] if len(parts) > 1 else 1) * 1048576
                     repeated = []

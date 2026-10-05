@@ -73,6 +73,15 @@ textures, overworld 895, 349 and 155, each 1.25 times the measured value. 41 dis
 Checked by hand: `assert-max` fails above its limit, and a file fetched twice from a throwaway server
 is reported. In the overworld the state scene is `TileMapScene` (the start cave), not `GameScene`.
 
+### Leak regression, `scripts/e2e-cycle` (2026-10-05)
+Starts three new games in one session, each played through the tutorial to the overworld (so
+`TileMapScene` loads and leaves maps), and uses two new steps: `until-new <text> <s>` (only console
+lines logged after the step starts count) and `assert-growth <a>.<field> <b>.<field> <margin>`.
+`measure` also records `pix`, the wasm pixmap heap. It asserts game 3 against game 1 for pixmap heap (5 MB),
+textures (5 MB) and JS heap (15 MB), and game 3 against game 2 for renderer RSS (30 MB). Measured:
+2, 0.9, 2.4 and 20 MB. It takes 232 s (3 min 52 s) on top of a build and is not in CI. Before the
+fix the same sequence grew by about 62 MB of pixmap heap and 23 MB of textures (two new games at the baseline rates).
+
 ## 2. `forgeweb.test.WebTest` (inside the game)
 A harness compiled into the game, **only active with `?test`** (PLAN Phase 7). It is driven by
 `api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `dismiss`,

@@ -1,5 +1,5 @@
 diff --git a/forge-core/src/main/java/forge/card/CardChangedType.java b/forge-core/src/main/java/forge/card/CardChangedType.java
-index 24f8fc75..e6d3cad0 100644
+index 24f8fc7501..e6d3cad0af 100644
 --- a/forge-core/src/main/java/forge/card/CardChangedType.java
 +++ b/forge-core/src/main/java/forge/card/CardChangedType.java
 @@ -96,7 +96,7 @@ public record CardChangedType(CardTypeView addType, CardTypeView removeType, boo
@@ -12,7 +12,7 @@ index 24f8fc75..e6d3cad0 100644
          return newType;
      }
 diff --git a/forge-core/src/main/java/forge/card/CardRules.java b/forge-core/src/main/java/forge/card/CardRules.java
-index 11ba139d..a3e0c9e2 100644
+index 11ba139d21..a3e0c9e2bb 100644
 --- a/forge-core/src/main/java/forge/card/CardRules.java
 +++ b/forge-core/src/main/java/forge/card/CardRules.java
 @@ -42,7 +42,8 @@ public final class CardRules implements ICardCharacteristics {
@@ -43,7 +43,7 @@ index 11ba139d..a3e0c9e2 100644
          aiHints = newRules.aiHints;
          colorIdentity = newRules.colorIdentity;
 diff --git a/forge-core/src/main/java/forge/card/CardType.java b/forge-core/src/main/java/forge/card/CardType.java
-index 7c6a122c..ac16728e 100644
+index 7c6a122c86..ac16728eed 100644
 --- a/forge-core/src/main/java/forge/card/CardType.java
 +++ b/forge-core/src/main/java/forge/card/CardType.java
 @@ -144,10 +144,12 @@ public final class CardType implements Comparable<CardType>, CardTypeView {
@@ -162,7 +162,7 @@ index 7c6a122c..ac16728e 100644
      }
  
 diff --git a/forge-core/src/main/java/forge/card/WordChangedType.java b/forge-core/src/main/java/forge/card/WordChangedType.java
-index 9652f359..7bb08fca 100644
+index 9652f359de..7bb08fca83 100644
 --- a/forge-core/src/main/java/forge/card/WordChangedType.java
 +++ b/forge-core/src/main/java/forge/card/WordChangedType.java
 @@ -6,7 +6,7 @@ public record WordChangedType(String oldWord, String newWord) implements ICardCh
@@ -175,7 +175,7 @@ index 9652f359..7bb08fca 100644
          return newType;
      }
 diff --git a/forge-core/src/main/java/forge/util/FileUtil.java b/forge-core/src/main/java/forge/util/FileUtil.java
-index 6463874a..00782663 100644
+index 6463874a0e..00782663aa 100644
 --- a/forge-core/src/main/java/forge/util/FileUtil.java
 +++ b/forge-core/src/main/java/forge/util/FileUtil.java
 @@ -128,7 +128,7 @@ public final class FileUtil {
@@ -197,7 +197,7 @@ index 6463874a..00782663 100644
                  p.println(o);
              }
 diff --git a/forge-core/src/main/java/forge/util/ImageUtil.java b/forge-core/src/main/java/forge/util/ImageUtil.java
-index a2d0dddf..5188c501 100644
+index a2d0dddf42..5188c501a8 100644
 --- a/forge-core/src/main/java/forge/util/ImageUtil.java
 +++ b/forge-core/src/main/java/forge/util/ImageUtil.java
 @@ -22,7 +22,21 @@ public class ImageUtil {
@@ -223,7 +223,7 @@ index a2d0dddf..5188c501 100644
          if (imageKey == null || imageKey.length() < 2) {
              return null;
 diff --git a/forge-core/src/main/java/forge/util/Localizer.java b/forge-core/src/main/java/forge/util/Localizer.java
-index 8839ecee..f882c77e 100644
+index 8839ecee93..f882c77e99 100644
 --- a/forge-core/src/main/java/forge/util/Localizer.java
 +++ b/forge-core/src/main/java/forge/util/Localizer.java
 @@ -1,10 +1,11 @@
@@ -305,7 +305,7 @@ index 8839ecee..f882c77e 100644
          if (!forceEnglish && adventureBundle != null) {
              try {
 diff --git a/forge-gui-mobile/src/forge/Forge.java b/forge-gui-mobile/src/forge/Forge.java
-index 4f64c66e..8d0b3ccd 100644
+index 4f64c66e5d..8d0b3ccdb1 100644
 --- a/forge-gui-mobile/src/forge/Forge.java
 +++ b/forge-gui-mobile/src/forge/Forge.java
 @@ -1012,14 +1012,29 @@ public class Forge implements ApplicationListener {
@@ -348,7 +348,7 @@ index 4f64c66e..8d0b3ccd 100644
          if (currentScene instanceof DuelScene)
              Forge.clearTransitionScreen(true);
 diff --git a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java b/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
-index 7b69854c..861fcc8c 100644
+index 7b69854c6a..861fcc8c02 100644
 --- a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
 +++ b/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
 @@ -455,11 +455,9 @@ public class AdventurePlayer implements Serializable, SaveFileContent {
@@ -367,7 +367,7 @@ index 7b69854c..861fcc8c 100644
              colorIdentity = ColorSet.WUBRG;
  
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/HudScene.java b/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
-index af7d8ddd..415842bf 100644
+index af7d8dddec..415842bf41 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/HudScene.java
 @@ -25,6 +25,12 @@ public abstract class HudScene extends Scene implements InputProcessor, IAfterMa
@@ -384,7 +384,7 @@ index af7d8ddd..415842bf 100644
      public boolean touchCancelled (int x, int y, int pointer, int button) {
          return touchUp(x, y, pointer, button);
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java b/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
-index d3013dbf..03c4d1f1 100644
+index d3013dbf78..03c4d1f134 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/RewardScene.java
 @@ -505,40 +505,14 @@ public class RewardScene extends UIScene {
@@ -433,7 +433,7 @@ index d3013dbf..03c4d1f1 100644
  
          yOff += (targetHeight - (cardHeight * numberOfRows)) / 2f;
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java b/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
-index cf2f83b9..4cb2db95 100644
+index cf2f83b93a..4cb2db9591 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/SaveLoadScene.java
 @@ -379,10 +379,15 @@ public class SaveLoadScene extends UIScene {
@@ -456,7 +456,7 @@ index cf2f83b9..4cb2db95 100644
              }
          }
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/Scene.java b/forge-gui-mobile/src/forge/adventure/scene/Scene.java
-index a413b0b3..c532a661 100644
+index a413b0b32e..c532a66114 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/Scene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/Scene.java
 @@ -1,5 +1,6 @@
@@ -523,7 +523,7 @@ index a413b0b3..c532a661 100644
  
      public abstract void render();
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/StartScene.java b/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
-index 4ded210a..5cc28c3a 100644
+index 4ded210a47..5cc28c3a61 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/StartScene.java
 @@ -52,6 +52,11 @@ public class StartScene extends UIScene {
@@ -539,10 +539,27 @@ index 4ded210a..5cc28c3a 100644
          version.skipToTheEnd();
          ui.addActor(version);
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java b/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
-index 7c13c576..39057f86 100644
+index 7c13c576d4..2e03b19767 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/TileMapScene.java
-@@ -88,8 +88,8 @@ public class TileMapScene extends HudScene {
+@@ -51,6 +51,16 @@ public class TileMapScene extends HudScene {
+             map.dispose();
+     }
+ 
++    /**
++     * The loader makes new textures for every map it loads, and the previous map's tilesets (the
++     * 2528x1024 main tileset is 10 MB) stayed in video memory until the scene was disposed.
++     * Call this after the renderer has switched to the new map.
++     */
++    private void disposeMap(TiledMap previous) {
++        if (previous != null && previous != map)
++            previous.dispose();
++    }
++
+     @Override
+     public void act(float delta) {
+         if (map == null)
+@@ -88,8 +98,8 @@ public class TileMapScene extends HudScene {
  
          float camX = stage.getCamera().position.x;
          float camY = stage.getCamera().position.y;
@@ -553,8 +570,36 @@ index 7c13c576..39057f86 100644
  
          tiledMapRenderer.setView(stage.getCamera().combined, camX - intWidth / 2.0f, camY - intHeight / 2.0f, intWidth, intHeight);
          if (!Forge.isLandscapeMode()) {
+@@ -148,11 +158,13 @@ public class TileMapScene extends HudScene {
+         }
+         rootPoint = point;
+         oldMap = point.getData().map;
++        TiledMap previousMap = map;
+         map = new TemplateTmxMapLoader().load(Config.instance().getCommonFilePath(point.getData().map));
+         ((MapStage) stage).setPointOfInterest(getPointOfInterestChanges());
+         stage.getPlayerSprite().setPosition(0, 0);
+         WorldSave.getCurrentSave().getWorld().setSeed(point.getSeedOffset());
+         tiledMapRenderer.loadMap(map, "", oldMap, 0);
++        disposeMap(previousMap);
+         stage.getPlayerSprite().stop();
+     }
+ 
+@@ -174,11 +186,13 @@ public class TileMapScene extends HudScene {
+     }
+ 
+     private void load(String targetMap, int nextSpawnPoint) {
++        TiledMap previousMap = map;
+         map = new TemplateTmxMapLoader().load(Config.instance().getFilePath(targetMap));
+         ((MapStage) stage).setPointOfInterest(getPointOfInterestChanges(targetMap));
+         stage.getPlayerSprite().setPosition(0, 0);
+         WorldSave.getCurrentSave().getWorld().setSeed(rootPoint.getSeedOffset());
+         tiledMapRenderer.loadMap(map, oldMap, targetMap, nextSpawnPoint);
++        disposeMap(previousMap);
+         oldMap = targetMap;
+         stage.getPlayerSprite().stop();
+     }
 diff --git a/forge-gui-mobile/src/forge/adventure/scene/UIScene.java b/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
-index ab434e96..7edd65d1 100644
+index ab434e96a7..7edd65d1cc 100644
 --- a/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
 +++ b/forge-gui-mobile/src/forge/adventure/scene/UIScene.java
 @@ -20,6 +20,7 @@ import com.github.tommyettinger.textra.TextraLabel;
@@ -592,7 +637,7 @@ index ab434e96..7edd65d1 100644
      }
  }
 diff --git a/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java b/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
-index 52f73cb7..550d2666 100644
+index 52f73cb7f0..550d26665b 100644
 --- a/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
 +++ b/forge-gui-mobile/src/forge/adventure/stage/GameHUD.java
 @@ -51,6 +51,7 @@ import forge.adventure.scene.MapViewScene;
@@ -644,7 +689,7 @@ index 52f73cb7..550d2666 100644
          float w = 45f;
          float h = 35f;
 diff --git a/forge-gui-mobile/src/forge/adventure/stage/GameStage.java b/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
-index eb6d0ddb..c755e946 100644
+index eb6d0ddbe6..c755e946b7 100644
 --- a/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
 +++ b/forge-gui-mobile/src/forge/adventure/stage/GameStage.java
 @@ -1,5 +1,6 @@
@@ -692,7 +737,7 @@ index eb6d0ddb..c755e946 100644
          onActing(delta);
      }
 diff --git a/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java b/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
-index 98acb1a1..ccc472d4 100644
+index 98acb1a141..ccc472d428 100644
 --- a/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
 +++ b/forge-gui-mobile/src/forge/adventure/stage/WorldBackground.java
 @@ -163,10 +163,13 @@ public class WorldBackground extends Actor {
@@ -713,7 +758,7 @@ index 98acb1a1..ccc472d4 100644
  
  
 diff --git a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java b/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
-index e1d6824b..ef37e7f3 100644
+index e1d6824b0b..ef37e7f3ed 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
 +++ b/forge-gui-mobile/src/forge/adventure/util/CardUtil.java
 @@ -80,6 +80,22 @@ public class CardUtil {
@@ -799,7 +844,7 @@ index e1d6824b..ef37e7f3 100644
          }
  
 diff --git a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
-index d0aec6b3..492e4e5e 100644
+index d0aec6b3c6..492e4e5e40 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
 +++ b/forge-gui-mobile/src/forge/adventure/util/RewardActor.java
 @@ -280,7 +280,7 @@ public class RewardActor extends Actor implements Disposable, ImageFetcher.Callb
@@ -868,7 +913,7 @@ index d0aec6b3..492e4e5e 100644
          projectionMat.setToProjection(Math.abs(near), Math.abs(far), fov, aspect);
          viewMat.setToLookAt(projPosVec, projPosVec.cpy().add(projDirectionVec), projUpVec);
 diff --git a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
-index 6be2bfd0..487309cf 100644
+index 6be2bfd083..487309cf74 100644
 --- a/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
 +++ b/forge-gui-mobile/src/forge/adventure/util/TemplateTmxMapLoader.java
 @@ -2,9 +2,18 @@ package forge.adventure.util;
@@ -952,7 +997,7 @@ index 6be2bfd0..487309cf 100644
          //return super.getDependencyFileHandles(tmxFile);
 diff --git a/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java b/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java
 new file mode 100644
-index 00000000..9392cb69
+index 0000000000..9392cb699b
 --- /dev/null
 +++ b/forge-gui-mobile/src/forge/adventure/util/ViewLayout.java
 @@ -0,0 +1,136 @@
@@ -1093,7 +1138,7 @@ index 00000000..9392cb69
 +    }
 +}
 diff --git a/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java b/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
-index 60be73ac..3c3039f5 100644
+index 60be73ac46..3c3039f522 100644
 --- a/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
 +++ b/forge-gui-mobile/src/forge/adventure/world/BiomeStructure.java
 @@ -20,6 +20,40 @@ public class BiomeStructure {
@@ -1173,7 +1218,7 @@ index 60be73ac..3c3039f5 100644
  
                      for (int y = 0; y < image.getHeight(); y++) {
 diff --git a/forge-gui-mobile/src/forge/adventure/world/Model.java b/forge-gui-mobile/src/forge/adventure/world/Model.java
-index 27c7f542..91f27d3d 100644
+index 27c7f542b6..91f27d3d29 100644
 --- a/forge-gui-mobile/src/forge/adventure/world/Model.java
 +++ b/forge-gui-mobile/src/forge/adventure/world/Model.java
 @@ -9,7 +9,12 @@ import java.util.Random;
@@ -1271,7 +1316,7 @@ index 27c7f542..91f27d3d 100644
        this.sumsOfOnes[i] = this.weights.length;
        this.sumsOfWeights[i] = this.sumOfWeights;
 diff --git a/forge-gui-mobile/src/forge/adventure/world/World.java b/forge-gui-mobile/src/forge/adventure/world/World.java
-index 47066dec..1a1a3e34 100644
+index 47066dec5a..7125acb255 100644
 --- a/forge-gui-mobile/src/forge/adventure/world/World.java
 +++ b/forge-gui-mobile/src/forge/adventure/world/World.java
 @@ -46,6 +46,8 @@ public class World implements Disposable, SaveFileContent {
@@ -1353,9 +1398,15 @@ index 47066dec..1a1a3e34 100644
              if (GuiBase.isMobile())
                  GuiBase.getInterface().preventSystemSleep(true);
              final long[] currentTime = {System.currentTimeMillis()};
-@@ -807,7 +838,9 @@ public class World implements Disposable, SaveFileContent {
+@@ -806,8 +837,15 @@ public class World implements Disposable, SaveFileContent {
+                 }
              }
              mapMarkerPixmap.dispose();
++            // The World object is reused for every new game, so the previous world's minimap
++            // image (2800x2800 RGBA, 31 MB) has to be released here, as load() does.
++            if (biomeImage != null && biomeImage != pix) {
++                biomeImage.dispose();
++            }
              biomeImage = pix;
 -            measureGenerationTime("sprites", currentTime[0]);
 +            currentTime[0] = measureGenerationTime("sprites", currentTime[0]);
@@ -1365,7 +1416,7 @@ index 47066dec..1a1a3e34 100644
              WorldStage.getInstance().clearCache();
  
 diff --git a/forge-gui-mobile/src/forge/assets/FSkin.java b/forge-gui-mobile/src/forge/assets/FSkin.java
-index 964cb212..068fdd80 100644
+index 964cb212fa..068fdd809e 100644
 --- a/forge-gui-mobile/src/forge/assets/FSkin.java
 +++ b/forge-gui-mobile/src/forge/assets/FSkin.java
 @@ -299,24 +299,15 @@ public class FSkin {
@@ -1726,7 +1777,7 @@ index 964cb212..068fdd80 100644
      }
  
 diff --git a/forge-gui-mobile/src/forge/assets/FSkinFont.java b/forge-gui-mobile/src/forge/assets/FSkinFont.java
-index 7bbecf2a..a5cd7f2a 100644
+index 7bbecf2afd..a5cd7f2a04 100644
 --- a/forge-gui-mobile/src/forge/assets/FSkinFont.java
 +++ b/forge-gui-mobile/src/forge/assets/FSkinFont.java
 @@ -77,6 +77,13 @@ public class FSkinFont {
@@ -1765,7 +1816,7 @@ index 7bbecf2a..a5cd7f2a 100644
                      Array<TextureRegion> textureRegions = new Array<>();
                      for (int i = 0; i < pages.size; i++) {
 diff --git a/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java b/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
-index 1d317fa1..6fa8987d 100644
+index 1d317fa155..6fa8987dc9 100644
 --- a/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
 +++ b/forge-gui-mobile/src/forge/assets/FSkinImageImpl.java
 @@ -15,6 +15,7 @@ public class FSkinImageImpl implements FSkinImageInterface {
@@ -1839,7 +1890,7 @@ index 1d317fa1..6fa8987d 100644
      }
  }
 diff --git a/forge-gui-mobile/src/forge/card/CardSleeveImage.java b/forge-gui-mobile/src/forge/card/CardSleeveImage.java
-index 87c6f742..c08dc73f 100644
+index 87c6f742a8..c08dc73ff1 100644
 --- a/forge-gui-mobile/src/forge/card/CardSleeveImage.java
 +++ b/forge-gui-mobile/src/forge/card/CardSleeveImage.java
 @@ -29,13 +29,13 @@ public class CardSleeveImage implements FImage {
@@ -1859,7 +1910,7 @@ index 87c6f742..c08dc73f 100644
      }
  
 diff --git a/forge-gui-mobile/src/forge/screens/TransitionScreen.java b/forge-gui-mobile/src/forge/screens/TransitionScreen.java
-index 8757ba80..18cbb889 100644
+index 8757ba803b..18cbb889ad 100644
 --- a/forge-gui-mobile/src/forge/screens/TransitionScreen.java
 +++ b/forge-gui-mobile/src/forge/screens/TransitionScreen.java
 @@ -181,6 +181,19 @@ public class TransitionScreen extends FContainer {
@@ -1883,7 +1934,7 @@ index 8757ba80..18cbb889 100644
                      float value = 1 - percentage;
                      if (eventDuel)
 diff --git a/forge-gui-mobile/src/forge/util/ScreenUtil.java b/forge-gui-mobile/src/forge/util/ScreenUtil.java
-index 335a9331..bdb15ad3 100644
+index 335a933154..bdb15ad322 100644
 --- a/forge-gui-mobile/src/forge/util/ScreenUtil.java
 +++ b/forge-gui-mobile/src/forge/util/ScreenUtil.java
 @@ -43,7 +43,26 @@ public class ScreenUtil implements Disposable {
@@ -1922,7 +1973,7 @@ index 335a9331..bdb15ad3 100644
          pixels.clear();
          // Read full framebuffer into a ByteBuffer
 diff --git a/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java b/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
-index 16b0e6db..3aff475d 100644
+index 16b0e6db73..3aff475d3c 100644
 --- a/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
 +++ b/forge-gui/src/main/java/forge/deck/CardArchetypeLDAGenerator.java
 @@ -38,6 +38,9 @@ public final class CardArchetypeLDAGenerator {
@@ -1936,7 +1987,7 @@ index 16b0e6db..3aff475d 100644
          if(formatMap==null) {
              try {
 diff --git a/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java b/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
-index 1b047f4f..d5103f75 100644
+index 1b047f4fc4..d5103f75cf 100644
 --- a/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
 +++ b/forge-gui/src/main/java/forge/gui/download/CdnUuidCache.java
 @@ -87,7 +87,7 @@ public final class CdnUuidCache {

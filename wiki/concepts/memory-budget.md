@@ -486,8 +486,27 @@ after "Generating world took"), renderer RSS / JS heap / backing stores:
   (`patches/forge-web.patch`). Saved 5.7 MB of JS heap (not the 12 MB estimated; the arrays hold
   4-byte references). Walked across two chunk borders in the overworld without errors; the world
   edge was not walked.
-- The wasm pixmap heap showed 40 MB after the first world and 71 MB after a second new game and
-  after a load, so the previous world's `biomeImage` may stay alive; not investigated ([[open-issues]]).
+
+## New games no longer leak the old world (2026-10-05)
+
+Measured in one session (seed 1, desktop 1280x720, headless software GL), at the overworld after the
+tutorial, before the fix: the wasm pixmap heap was 7 MB at the menu, then 40, 71 and 102 MB after
+games 1, 2 and 3 (31 MB per new game, the previous `biomeImage`), and live texture memory went
+124.0, 135.7, 147.3 MB (11.7 MB per new game, the previous `TiledMap`, which is a 2528x1024 main
+tileset). Renderer RSS went 677, 725, 756 MB. Loading a save added another pixmap and 9 MB of textures.
+
+Two Forge patches fix it, with no `forge.web` guard because they are bugs on desktop too.
+`World.generateNew` disposes the old `biomeImage` when it stores the new one, and
+`TileMapScene.load` (both overloads) disposes the previous `TiledMap` after the renderer has
+switched to the new one. After the fix, games 1, 2 and 3 measured 40, 41, 42 MB of pixmap heap and
+157.5, 157.9, 158.4 MB of textures (the overworld numbers are higher than the table above because
+they are taken after the tutorial, which loads the start cave and its textures). Growth per new game
+is now about 1 MB of pixmap heap and 0.4 MB of textures; a save, then a load, added 1 MB and 1.3 MB.
+Renderer RSS still rises between games 1 and 2 (739 to 768 MB), because the old image is freed only
+after the new one exists, which raises the wasm memory high-water mark once; games 2 to 3 added 15 to
+20 MB (JS heap 283.0, 284.6, 285.4 MB). Visiting towns and dungeons raises the texture total by about
+1.8 MB per distinct map (sprite atlases that stay cached), not 10 MB. `scripts/e2e-cycle` asserts all
+of this ([[webtest-harness]]).
 
 ## Findings for phones (2026-10-01)
 
@@ -531,6 +550,6 @@ Next steps, in order:
 - Test at a phone viewport, and on a real GPU (headless GPU numbers are software GL).
 
 ## How to measure
-`scripts/e2e-newgame` asserts renderer RSS, JS heap and texture memory at the menu and the overworld (see [[webtest-harness]]). `scripts/measure` runs the webtest `heap` step, which reports the JS heap, ArrayBuffers, wasm memories, and
+`scripts/e2e-cycle` asserts that a second and third new game do not grow the pixmap heap or textures. `scripts/e2e-newgame` asserts renderer RSS, JS heap and texture memory at the menu and the overworld (see [[webtest-harness]]). `scripts/measure` runs the webtest `heap` step, which reports the JS heap, ArrayBuffers, wasm memories, and
 live pixmaps with allocation stacks of the large ones. Build peak memory is tracked as well
 (see [[metrics]], [[build-pipeline]]).
