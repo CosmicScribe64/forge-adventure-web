@@ -205,3 +205,16 @@ Next steps:
 - Without the retry the menu music never started in the test; with it, it starts at the first
   click. Track changes dispose the old Howl. Not tested on a real iPhone.
 - Pages touched: [[memory-budget]], [[open-issues]], [[bug-catalog]], [[metrics]], [[code-map]].
+
+## [2026-10-05] fix | Heap snapshot, and app.js source stored as one-byte text (memory plan steps 2 to 4)
+- Read [[memory-budget]], [[metrics]] and [[open-issues]]. Step 2 (revoke the app.js Blob URL) was
+  measured and saved nothing (renderer 773 to 776 MB at the desktop menu), so no code was kept.
+- Added a `snapshot` step to `web/tools/webtest.py` and took a V8 heap snapshot at the menu.
+  Of 310 MB of backing stores, 145 MB was the `app.js` source held as a two-byte string because
+  2468 characters are above U+00FF; the wasm heaps are 80 MB, the card zip 27.5 MB, the startup
+  pack 21 MB.
+- Reordered the plan on that evidence: added `web/tools/latin1-js.py`, run by `scripts/build-web`,
+  which escapes those characters. Renderer at the menu 773 to 701 MB (desktop), 779 to 705 MB
+  (phone size); overworld 1034 to 954 MB; GPU unchanged. Selftest 38 of 38. A gameplay save and
+  load was not exercised (Save is greyed in the starting cave).
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[build-pipeline]].

@@ -16,6 +16,9 @@ if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
   # Content hashes in the URLs mean a browser never runs a stale cached app.js after a rebuild,
   # and can keep an unchanged one.
   WEBAPP="$ROOT/web/build/dist/js/webapp"
+  # Chrome stores a script's source as two bytes per character if any character is above U+00FF
+  # (145 MB for app.js, against about 76 MB); escaping those few characters halves that.
+  python3 "$ROOT/web/tools/latin1-js.py" "$WEBAPP/app.js"
   APP_V=$(shasum "$WEBAPP/app.js" | cut -c1-12)
   WORKER_V=$(shasum "$WEBAPP/wfc-worker.js" 2>/dev/null | cut -c1-12)
   # Not sed -i: its argument syntax differs between macOS and GNU sed.

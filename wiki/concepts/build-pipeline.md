@@ -22,7 +22,7 @@ steps below.
 | Build Forge jars | `scripts/build-forge-libs` | `web/libs/*.jar` and dependencies | Forge's POMs use unresolved `${revision}`, so Gradle takes a fileTree of jars |
 | Game data | `scripts/build-webdata` | `web/webdata/` manifest, `cardsfolder.zip`, packs | see [[virtual-file-system]] |
 | WFC worker | `scripts/build-worker` (`WORKER=true`) | `web/build/dist/wfc-worker.js` (212 KB) | copied next to index.html by build-web and selftest |
-| Game | `scripts/build-web` | `web/build/dist/js/webapp`, log `web/build/teavm.log` | about 5 min; it rewrites index.html without `sed -i`, so it runs on macOS and Linux (2026-10-01) |
+| Game | `scripts/build-web` | `web/build/dist/js/webapp`, log `web/build/teavm.log` | about 5 min; it rewrites index.html without `sed -i`, so it runs on macOS and Linux (2026-10-01); it escapes characters above U+00FF in `app.js` with `web/tools/latin1-js.py` so Chrome stores the source in one byte per character (2026-10-05, [[memory-budget]]) |
 | Self-test | `scripts/selftest` (`SELFTEST=true`) | `web/build/dist/selftest` | about 35 s of checks plus about 5 min to build; see [[selftest]] |
 | Serve | `scripts/serve-web` | port 8090 | also the desktop preview config `forge-web` |
 | Static site | `scripts/build-site` | `web/build/site` (245 MB) | the game (app.js only as `app.js.gz`), `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |

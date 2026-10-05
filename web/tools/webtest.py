@@ -17,6 +17,7 @@ Steps (separated by ';'):
   api <command>            the game's test harness (forgeweb.test.WebTest): state, moveto X Y,
                            goto NAME, click TEXT, duel, ok, cancel, play CARD, player NAME, ...
   until <text> <seconds>   wait until a console line contains <text> (fails after <seconds>)
+  snapshot <path>          write a V8 heap snapshot (.heapsnapshot, open in DevTools or parse it)
   heap <path>              garbage-collect, then write the JS heap totals and (with --heap-sampling)
                            which functions allocated the memory still alive, to <path>
   profile <seconds> <path> CPU-profile the page; writes the top functions (self time) to <path>
@@ -360,6 +361,16 @@ def main():
                         for entry in large:
                             f.write(entry + "\n")
                     print(f"heap: {parts[1]} {totals}")
+                elif cmd == "snapshot":
+                    # snapshot PATH: a V8 heap snapshot (.heapsnapshot), including ArrayBuffer backing stores.
+                    cdp = page.context.new_cdp_session(page)
+                    cdp.send("HeapProfiler.enable")
+                    cdp.send("HeapProfiler.collectGarbage")
+                    snap = open(os.path.join(ROOT, parts[1]), "w")
+                    cdp.on("HeapProfiler.addHeapSnapshotChunk", lambda e: snap.write(e["chunk"]))
+                    cdp.send("HeapProfiler.takeHeapSnapshot", {"reportProgress": False})
+                    snap.close()
+                    print(f"snapshot: {parts[1]}")
                 elif cmd == "profile":
                     seconds, out_path = float(parts[1]), parts[2]
                     cdp = page.context.new_cdp_session(page)

@@ -1,7 +1,7 @@
 ---
 type: concept
-sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5]
-updated: 2026-10-04
+sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html]
+updated: 2026-10-05
 tags: [memory, phones, performance]
 ---
 
@@ -90,6 +90,60 @@ Behaviour checked in the same setup:
 - Not tested on a real iPhone. WebKit may need a user gesture for every new audio element, so
   a track change on iOS could stay silent until the next tap. Test it at step 6.
 
+## Heap snapshot and the script source (2026-10-05)
+
+Steps 2 to 4 of the plan, in the order the evidence called for.
+
+**Heap snapshot at the main menu** (`webtest` step `snapshot`, headless, software GL, desktop
+1280x720, seed 1, build c588afb). V8 reported 310 MB of backing stores, and the snapshot
+splits them like this:
+
+| Part | Size | What it is |
+|---|---|---|
+| External string data | 146 MB | The source text of `app.js`: 145 MB, one string. Chrome kept it as two bytes per character (76 million characters) because 2468 characters are above U+00FF. Howler (0.03 MB), the Gdx and Module glue (1.2 MB) are the rest |
+| libGDX wasm heap (`Gdx` memory) | 64 MB | Mostly the FreeType heap and live pixmaps |
+| The card script zip held by the virtual file system | 27.5 MB | `Node.data` of `cardsfolder.zip` in `WebFileSystem` |
+| The startup pack held in `WebFileSystem.packs` | 21.3 MB | Kept after startup for later reads |
+| The window wasm memory | 16 MB | Fixed size |
+| The editions pack in `packs` | 3.9 MB | Same map |
+| Everything else (7000 small buffers) | about 30 MB | Files read so far, character tables, `forgePrefetch` leftovers (the 0.26 MB `blockdata.pack` that nothing takes) |
+
+The snapshot's total was 591 MB of self size: 310 native, 120 objects, 50 strings, 35 code,
+26 arrays. The 280 MB JS heap is 970,000 `String` objects (26 MB), 500,000 element arrays,
+345,000 `TreeMap` nodes, 98,000 `PaperCard`s and 102,000 edition entries, so the card
+database really is spread thin over small objects and no single structure dominates.
+
+**Step 2, revoking the app.js Blob URL: no measurable change.** The page now revokes the URL as
+soon as the script has run (`web/html/index.html`, `loadApp`). Measured with the same build,
+before and after: renderer 773 and 776 MB at the desktop menu, 1034 and 1028 MB at the
+overworld, 779 and 782 MB at the phone-size menu; backing stores 310 MB both times. Chrome
+doesn't count the Blob in the renderer, so the change was not committed. The 76 MB Blob never
+was the cost; the cost is the source text V8 keeps.
+
+**The two-byte source (a new step, ahead of dropping the packs because it saves more).**
+`web/tools/latin1-js.py` rewrites the 2468 characters above U+00FF (curly quotes in quest text,
+accents, dashes) as `\uXXXX` escapes, and `scripts/build-web` runs it before hashing and
+compressing `app.js`. It refuses to run if such a character follows a backslash. The file grows
+by 9 KB. V8 then holds the source as one byte per character.
+
+| Measure (headless, software GL, seed 1, same build, only `app.js` changed) | Before | After | Saved |
+|---|---|---|---|
+| Menu, desktop: renderer | 773 MB | 701 MB | 72 MB |
+| Menu, desktop: ArrayBuffer backing stores | 310 MB | 237.5 MB | 72.5 MB |
+| Menu, desktop: GPU | 461 MB | 450 MB | none (noise) |
+| Overworld, desktop: renderer | 1034 MB | 954 MB | 80 MB |
+| Overworld, desktop: backing stores | 373 MB | 300 MB | 73 MB |
+| Menu, phone 390x844 at 3x: renderer | 779 MB | 705 MB | 74 MB |
+| Menu, phone: GPU | 435 MB | 435 MB | none |
+
+JS heap used stayed at 281 MB. Checked: startup, a new game to the overworld (world generated,
+screenshot taken) and the [[selftest]] suite (38 of 38; it uses its own build, so it did not run
+the escaped file). A gameplay save and load was not exercised: the Save button is greyed in the
+starting cave and no autosave exists there, so only the selftest save checks cover saving.
+
+Another option, not taken: minifying `app.js` (TeaVM's obfuscation) would cut the source further,
+but it changes every stack trace the test tools print. That is the owner's choice.
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -113,9 +167,12 @@ card pool and `StaticData.ensureAllCardsLoaded` would load everything anyway.
 Next steps, in order:
 1. Done 2026-10-04: music streams with `html5: true` and its Blob URLs are revoked (see
    "Music streaming" above). Saved 54 to 58 MB at the menu and 86 MB at the overworld.
-2. Revoke the app.js Blob URL once the script has loaded (a 76 MB copy).
-3. Drop the startup pack and the card zip after startup, if nothing reads them again.
-4. Take a heap snapshot to break down the 310 MB of ArrayBuffer backing stores.
+2. Done 2026-10-05, no gain: revoking the app.js Blob URL (see "Heap snapshot" above).
+3. Next, about 55 MB expected from the snapshot: drop the startup pack (21 MB) and editions
+   pack (4 MB) from `WebFileSystem.packs`, and the card zip (27.5 MB) from its `Node.data`, after
+   startup, if nothing reads them again. Both can be fetched again on demand.
+4. Done 2026-10-05: heap snapshot. It found the two-byte `app.js` source (145 MB), fixed by
+   escaping non-Latin-1 characters, which saved 72 MB at the menu.
 5. Shrink the card database itself (shared strings, smaller per-card structures), since lazy
    loading can't be used.
 6. Test on a real iPhone, or in WebKit through Playwright, at each step.
