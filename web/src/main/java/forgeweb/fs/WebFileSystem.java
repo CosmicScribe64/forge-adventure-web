@@ -15,6 +15,10 @@ import java.io.IOException;
  * (preferences, saves, caches) lives in memory, and {@link UserDataStore} persists it.
  */
 public final class WebFileSystem extends FileStore implements VirtualFileSystem {
+    /** Downloaded card pictures kept in memory: about 640 at 100 KB each (measured). A picture dropped from here is not
+     *  downloaded again until its list item is created again, so this is a ceiling for very long sessions. */
+    static final long PICTURE_CACHE_BYTES = 64L << 20;
+
     private String userDir = "/";
 
     private WebFileSystem() {
@@ -27,6 +31,7 @@ public final class WebFileSystem extends FileStore implements VirtualFileSystem 
         fs.mountManifest(mountPoint, Http.getText(manifestUrl), baseUrl);
         UserDataStore.setUserRoot(mountPoint + "data/");
         UserDataStore.restore(fs);
+        fs.capFolder(mountPoint + "cache/pics/", PICTURE_CACHE_BYTES);
         fs.userDir = mountPoint;
         // For code that builds paths from user.dir (null on TeaVM otherwise).
         System.setProperty("user.dir", mountPoint);

@@ -344,4 +344,44 @@ class FileStoreTest {
         assertEquals(1, fs.remoteFetches());
         assertEquals(0, host.pendingTimers());
     }
+
+    // --- capped folder ---
+
+    private Node write(String path, int size) {
+        int slash = path.lastIndexOf('/');
+        Node dir = fs.mkdirs(path.substring(0, slash));
+        Node f = dir.addChild(new Node(path.substring(slash + 1), false));
+        f.data = new byte[size + size / 2];
+        f.size = size;
+        fs.written(f);
+        return f;
+    }
+
+    @Test
+    void cappedFolderDropsTheLeastRecentlyUsedFiles() {
+        fs.capFolder("/forge/cache/pics", 100);
+        Node a = write("/forge/cache/pics/cards/a.jpg", 40);
+        Node b = write("/forge/cache/pics/cards/b.jpg", 40);
+        assertEquals(40, a.data.length, "spare buffer room is released");
+        fs.used(a);
+        write("/forge/cache/pics/tokens/c.jpg", 40);
+        assertNotNull(fs.find("/forge/cache/pics/cards/a.jpg"));
+        assertNull(fs.find("/forge/cache/pics/cards/b.jpg"));
+        assertNull(b.parent);
+        assertNotNull(fs.find("/forge/cache/pics/tokens/c.jpg"));
+        assertEquals(80, fs.cappedBytes());
+    }
+
+    @Test
+    void cappedFolderLeavesOtherFilesAndKeepsTheNewestEvenIfBig() {
+        fs.capFolder("/forge/cache/pics", 100);
+        Node prefs = write("/forge/data/preferences/x.pref", 500);
+        assertEquals(750, prefs.data.length);
+        Node big = write("/forge/cache/pics/cards/big.jpg", 300);
+        assertNotNull(fs.find("/forge/data/preferences/x.pref"));
+        assertNotNull(fs.find("/forge/cache/pics/cards/big.jpg"));
+        assertEquals(300, fs.cappedBytes());
+        fs.forget(big);
+        assertEquals(0, fs.cappedBytes());
+    }
 }

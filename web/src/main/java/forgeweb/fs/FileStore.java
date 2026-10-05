@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +39,12 @@ class FileStore {
     private boolean trimScheduled;
     private int remoteFetches;
     private long remoteBytes;
+    /** See {@link #capFolder}. In access order, so the eldest entry is the least recently used file. */
+    private final LinkedHashMap<Node, Integer> capped = new LinkedHashMap<>(64, 0.75f, true);
+    private String cappedPrefix;
+    private long cappedMax;
+    private long cappedBytes;
+    private int cappedDropped;
 
 
     FileStore(Host host) {
@@ -128,6 +135,67 @@ class FileStore {
             n = c;
         }
         return n;
+    }
+
+    /**
+     * Bounds the files under a folder that the game writes at runtime and could download again
+     * (card pictures from Scryfall in cache/pics/: every picture ever shown stayed in memory, about
+     * 100 KB each). Over {@code maxBytes}, the least recently read or written files are deleted
+     * from the tree. Forge downloads a missing picture again when it next looks for it as a new card
+     * image (a list item that already looked keeps showing its placeholder). A reader that already
+     * has the file open keeps reading it.
+     */
+    public void capFolder(String folder, long maxBytes) {
+        cappedPrefix = folder.endsWith("/") ? folder : folder + "/";
+        cappedMax = maxBytes;
+    }
+
+    private boolean inCappedFolder(Node n) {
+        return cappedPrefix != null && !n.directory && (n.path() + "/").startsWith(cappedPrefix);
+    }
+
+    /** Called when a file's contents were written or moved into place (not while it is being written). */
+    void written(Node n) {
+        if (!inCappedFolder(n)) return;
+        // Writing grows the buffer by half each time it fills; the finished file needs no spare room.
+        if (n.data != null && n.data.length > n.size) n.data = Arrays.copyOf(n.data, n.size);
+        Integer old = capped.put(n, n.size);
+        cappedBytes += n.size - (old == null ? 0 : old);
+        while (cappedBytes > cappedMax && capped.size() > 1) {
+            Node eldest = capped.keySet().iterator().next();
+            if (eldest == n) break;
+            forget(eldest);
+            // Once, then every 100th: a long deck editor session would otherwise log one line per picture.
+            if (cappedDropped++ % 100 == 0) {
+                System.out.println("[fs] picture cache over " + (cappedMax >> 20) + " MB: dropped " + cappedDropped
+                        + " pictures so far, " + (cappedBytes >> 10) + " KB kept in " + capped.size() + " files");
+            }
+            if (eldest.parent != null) {
+                eldest.parent.children.remove(eldest.name);
+                eldest.parent = null;
+            }
+        }
+    }
+
+    /** Called when a capped file is read: it is the most recently used now. */
+    void used(Node n) {
+        if (cappedPrefix != null) capped.get(n);
+    }
+
+    /** Called when a file leaves the tree by deletion or by being moved. */
+    void forget(Node n) {
+        Integer old = capped.remove(n);
+        if (old != null) cappedBytes -= old;
+    }
+
+    /** Bytes of the capped folder's files that are in memory. */
+    public long cappedBytes() {
+        return cappedBytes;
+    }
+
+    /** JSON for the test harness: files and KB held in the capped folder, and files dropped so far. */
+    public String cappedStats() {
+        return "{\"files\":" + capped.size() + ",\"kb\":" + (cappedBytes >> 10) + ",\"dropped\":" + cappedDropped + "}";
     }
 
     /** Files and packs from this size up are dropped again once idle, see {@link #trim}. */

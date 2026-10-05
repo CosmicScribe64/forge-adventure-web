@@ -1889,6 +1889,120 @@ index 1d317fa155..6fa8987dc9 100644
 +        g.drawImage(region(), x, y, w, h);
      }
  }
+diff --git a/forge-gui-mobile/src/forge/assets/ImageCache.java b/forge-gui-mobile/src/forge/assets/ImageCache.java
+index 657fa2b0ff..34adb4c3e9 100644
+--- a/forge-gui-mobile/src/forge/assets/ImageCache.java
++++ b/forge-gui-mobile/src/forge/assets/ImageCache.java
+@@ -20,6 +20,8 @@ package forge.assets;
+ import java.io.File;
+ import java.util.HashMap;
+ import java.util.HashSet;
++import java.util.Iterator;
++import java.util.LinkedHashSet;
+ import java.util.Queue;
+ import java.util.Set;
+ 
+@@ -98,17 +100,22 @@ public class ImageCache {
+             boolean lowRam = Forge.totalDeviceRAM > 0 && Forge.totalDeviceRAM <= 4500;
+             maxCardCapacity = lowRam ? 48 : 120;
+         }
++        // The web build holds every card texture in browser memory (about 0.8 MB each, and the page
++        // can't swap), and a phone has far less of it than a desktop: same ceiling as iOS.
++        if (Boolean.getBoolean("forge.web")) {
++            maxCardCapacity = Math.min(maxCardCapacity, 120);
++        }
+         //init q
+         q = EvictingQueue.create(maxCardCapacity);
+         //init syncQ for threadsafe use
+         syncQ = Queues.synchronizedQueue(q);
+         int cl = maxCardCapacity + (capacity / 3);
+-        cardsLoaded = new HashSet<>(cl);
++        cardsLoaded = new LinkedHashSet<>(cl);
+     }
+ 
+     private Set<String> getCardsLoaded() {
+         if (cardsLoaded == null) {
+-            cardsLoaded = new HashSet<>(400);
++            cardsLoaded = new LinkedHashSet<>(400);
+         }
+         return cardsLoaded;
+     }
+@@ -320,6 +327,9 @@ public class ImageCache {
+             image = getAsset(imageFile);
+ 
+             if (image != null) {
++                if (!others && imageFile != null) {
++                    noteUsed(imageFile.getPath());
++                }
+                 return image;
+             }
+ 
+@@ -359,6 +369,39 @@ public class ImageCache {
+         return image;
+     }
+ 
++    /**
++     * Keeps the most recently drawn card textures and unloads the rest once there are more than
++     * maxCardCapacity. A texture that finished loading is handed out by getAsset, which never reaches
++     * loadAsset's bookkeeping, so without this nothing was ever unloaded: scrolling through a few
++     * hundred cards in the deck editor kept every texture (about 0.8 MB each) alive.
++     * cardsLoaded is in least-recently-used order (a texture used again moves to the end).
++     */
++    private void noteUsed(String fileName) {
++        Set<String> loaded = getCardsLoaded();
++        loaded.remove(fileName);
++        loaded.add(fileName);
++        if (loaded.size() <= maxCardCapacity)
++            return;
++        // Drop a tenth at a time: the card art cache refers to these textures and is cleared on each drop.
++        int keep = maxCardCapacity - maxCardCapacity / 10;
++        try {
++            Iterator<String> it = loaded.iterator();
++            while (loaded.size() > keep && it.hasNext()) {
++                String eldest = it.next();
++                if (eldest.equals(fileName))
++                    continue;
++                if (Forge.getAssets().manager().isLoaded(eldest, Texture.class)) {
++                    Forge.getAssets().manager().unload(eldest);
++                } else if (Forge.getAssets().manager().contains(eldest)) {
++                    continue; // still loading: unloaded on a later pass, or it would load and never be dropped
++                }
++                it.remove();
++            }
++            CardRenderer.clearcardArtCache();
++            ((Forge) Gdx.app.getApplicationListener()).needsUpdate = true;
++        } catch (Exception ignored) {}
++    }
++
+     private Texture getAsset(File file) {
+         if (file == null)
+             return null;
+@@ -378,10 +421,9 @@ public class ImageCache {
+ 
+         if (check != null) {
+             if (!others) {
+-                //update first before clearing
+-                getSyncQ().add(fileName);
+-                getCardsLoaded().add(fileName);
+-                unloadCardTextures(false);
++                // This used to unload everything not among the last few texture loads (syncQ), which
++                // with the LRU in noteUsed would drop the textures on screen.
++                noteUsed(fileName);
+             }
+ 
+             if (others) {
+@@ -413,6 +455,11 @@ public class ImageCache {
+                 if (!Forge.getAssets().manager().contains(fileName)) {
+                     Forge.getAssets().manager().load(fileName, Texture.class, cardTextureParameter(fileName));
+                     counter += 1;
++                    if (!others) {
++                        // A card that scrolls out of view while it loads is never drawn again, and
++                        // would stay loaded for good if it were first noted when drawn.
++                        getCardsLoaded().add(fileName);
++                    }
+                 }
+ 
+                 CardRenderer.clearcardArtCache();
 diff --git a/forge-gui-mobile/src/forge/card/CardSleeveImage.java b/forge-gui-mobile/src/forge/card/CardSleeveImage.java
 index 87c6f742a8..c08dc73ff1 100644
 --- a/forge-gui-mobile/src/forge/card/CardSleeveImage.java

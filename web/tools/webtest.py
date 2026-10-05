@@ -7,6 +7,7 @@ Run it through scripts/webtest, for example:
 Steps (separated by ';'):
   wait <seconds>           let the game run
   click <x> <y>            click at page coordinates (viewport is --width x --height)
+  wheel <x> <y> <dy> [<n>] scroll the mouse wheel n times (default 1) by dy pixels, with the pointer at x y
   key <name>               press a key (Playwright key names, e.g. Enter, Escape, ArrowUp)
   hold <name> <seconds>    hold a key down (movement keys need this; a press is too short)
   type <text>              type text
@@ -15,7 +16,7 @@ Steps (separated by ';'):
   reload                   reload the page (same browser profile, so IndexedDB saves survive)
   js <expression>          evaluate JavaScript in the page and print the (JSON) result
   api <command>            the game's test harness (forgeweb.test.WebTest): state, moveto X Y,
-                           goto NAME, click TEXT, duel, ok, cancel, play CARD, player NAME, ...
+                           goto NAME, click TEXT, addcards N, fsstats, duel, ok, cancel, play CARD, player NAME, ...
   until <text> <seconds>   wait until a console line contains <text> (fails after <seconds>)
   expect <js expression>   fail the run (exit code 1) unless the expression is truthy in the page
   until-new <text> <seconds>
@@ -392,6 +393,11 @@ def main():
                     pump(float(parts[1]))
                 elif cmd == "click":
                     page.mouse.click(float(parts[1]), float(parts[2]))
+                elif cmd == "wheel":
+                    page.mouse.move(float(parts[1]), float(parts[2]))
+                    for _ in range(int(parts[4]) if len(parts) > 4 else 1):
+                        page.mouse.wheel(0, float(parts[3]))
+                        pump(0.05)
                 elif cmd == "key":
                     page.keyboard.press(parts[1])
                 elif cmd == "hold":

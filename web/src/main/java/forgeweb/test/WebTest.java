@@ -226,12 +226,36 @@ public final class WebTest {
 
     // --- commands ---
 
+    /** addcards N: puts N different cards of the Adventure card pool into the player's collection
+     *  (in a fixed order), so the deck editor has a long list of card images to scroll through. */
+    private static String addCards(String arg) {
+        int n = Integer.parseInt(arg.isEmpty() ? "100" : arg);
+        if (WorldSave.getCurrentSave() == null) return "{\"error\":\"no game\"}";
+        String[] editions = forge.adventure.util.Config.instance().getConfigData().allowedEditions;
+        List<String> allowed = editions == null ? Collections.<String>emptyList() : java.util.Arrays.asList(editions);
+        List<forge.item.PaperCard> pool = new ArrayList<>();
+        for (forge.item.PaperCard c : forge.model.FModel.getMagicDb().getCommonCards().getAllCards()) {
+            if (allowed.isEmpty() || allowed.contains(c.getEdition())) pool.add(c);
+        }
+        Collections.sort(pool);
+        Collections.shuffle(pool, new java.util.Random(1));
+        AdventurePlayer player = WorldSave.getCurrentSave().getPlayer();
+        int added = Math.min(n, pool.size());
+        for (int i = 0; i < added; i++) player.addCard(pool.get(i));
+        return "{\"added\":" + added + ",\"pool\":" + pool.size() + "}";
+    }
+
     static String execute(String command) {
         String[] parts = command.split("\\s+", 2);
         String verb = parts[0].toLowerCase(Locale.ROOT);
         String arg = parts.length > 1 ? parts[1].trim() : "";
         switch (verb) {
             case "state": return state();
+            case "addcards": return addCards(arg);
+            case "fsstats": {
+                Object fs = org.teavm.runtime.fs.VirtualFileSystemProvider.getInstance();
+                return fs instanceof forgeweb.fs.WebFileSystem ? ((forgeweb.fs.WebFileSystem) fs).cappedStats() : "{}";
+            }
             case "moveto": {
                 String[] xy = arg.split("[\\s,]+");
                 return moveTo(Float.parseFloat(xy[0]), Float.parseFloat(xy[1]), false);

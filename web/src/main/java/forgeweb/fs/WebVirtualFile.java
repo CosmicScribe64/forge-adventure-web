@@ -87,6 +87,7 @@ final class WebVirtualFile implements VirtualFile {
         Node n = node();
         if (n == null || n.parent == null || (n.directory && !n.children.isEmpty())) return false;
         n.parent.children.remove(n.name);
+        fs.forget(n);
         UserDataStore.deleted(n);
         n.parent = null;
         return true;
@@ -98,6 +99,7 @@ final class WebVirtualFile implements VirtualFile {
         Node moved = ((WebVirtualFile) file).node();
         if (dir == null || !dir.directory || moved == null || moved.parent == null) return false;
         UserDataStore.deleted(moved);
+        fs.forget(moved);
         moved.parent.children.remove(moved.name);
         Node renamed = new Node(fileName, moved.directory);
         if (moved.directory) {
@@ -110,6 +112,7 @@ final class WebVirtualFile implements VirtualFile {
         }
         dir.addChild(renamed);
         UserDataStore.changed(renamed);
+        if (!renamed.directory) fs.written(renamed);
         return true;
     }
 
@@ -180,6 +183,7 @@ final class WebVirtualFile implements VirtualFile {
                 }
                 System.arraycopy(n.data, pos, buffer, offset, limit);
                 pos += limit;
+                fs.used(n);
             }
             return limit;
         }
@@ -217,6 +221,7 @@ final class WebVirtualFile implements VirtualFile {
         public void close() {
             if (writable && modified) {
                 UserDataStore.changed(n);
+                fs.written(n);
             }
         }
 
