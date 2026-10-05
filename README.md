@@ -19,9 +19,11 @@ In desktop Chrome you can play the tutorial, generate a world, walk the overworl
 and shops, fight duels against Forge's AI, and save and load. That's about as far as testing has
 gone. Other desktop browsers haven't been tried.
 
-Phones don't work yet. The game uses about 1.3 GB of memory by the time the main menu appears,
-which is more than most phone browsers allow a tab, so the page reloads and then crashes.
-Getting it under 1 GB is the next big piece of work.
+Phones may not work yet. At version 0.1.1 the game used about 1.3 GB of memory by the time the
+main menu appeared, which is more than most phone browsers allow a tab, so the page reloaded and
+then crashed. Version 0.1.2 brings that down to about 800 MB at the main menu and about 900 MB on
+the overworld, measured in headless Chrome at a phone's screen size (page plus GPU memory). It
+hasn't been tried on a real phone yet, so reports from phones are especially welcome.
 
 The title screen takes 20 seconds to a minute or more to appear, depending on your connection
 and computer. [`wiki/status/open-issues.md`](wiki/status/open-issues.md) lists the known

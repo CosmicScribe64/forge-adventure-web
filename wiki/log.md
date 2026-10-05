@@ -363,3 +363,8 @@ Next steps:
   textures +0.9, RSS +22, heap +1.9 MB), `scripts/e2e-boot`, SelfTest 39/39 readable and minified, 29 JUnit and 15 Python tests all
   pass. `e2e-cycle` fails with the `biomeImage` dispose removed. Run `scripts/e2e-newgame` on the first release to see how GitHub's runners
   compare with the sandbox.
+
+## [2026-10-05] update | README status for 0.1.2
+- README's Status section now gives the 0.1.2 memory figures (about 800 MB at the main menu and
+  about 900 MB on the overworld at phone size, page plus GPU, headless Chrome) instead of the
+  1.3 GB of 0.1.1, and says the game hasn't been tried on a real phone yet.
