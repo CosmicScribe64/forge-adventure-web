@@ -1,9 +1,9 @@
 # Checks every push to main and every pull request: the unit tests pass (scripts/unit-test, about a
 # minute, before anything long starts), the Forge patch still applies, Forge and the
 # game still compile, the SelfTest checks pass in headless Chromium, and the built game boots to
-# its title screen without console errors (scripts/e2e-boot). These are readable builds. The
+# its title screen without console errors (scripts/e2e-boot, on desktop and in phone emulation). These are readable builds. The
 # minified build (TEAVM_OBFUSCATED=true) costs another 5 minutes for its own SelfTest compile, so
-# pages.yml, which publishes releases, runs SelfTest, e2e-boot and e2e-newgame against it. To
+# pages.yml, which publishes releases, runs SelfTest and the e2e scenarios (desktop, phone and WebKit iPhone) against it. To
 # check a change by hand: TEAVM_OBFUSCATED=true scripts/selftest.
 name: CI
 
@@ -55,6 +55,10 @@ jobs:
       - name: Boot smoke test
         run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
 
+      # The same smoke test in Chromium emulating a phone (390x844, scale 3, touch), about 40 seconds more.
+      - name: Boot smoke test, phone
+        run: scripts/e2e-boot phone || { tail -40 out/e2e-boot-phone.log; exit 1; }
+
       - name: Keep the unit test reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -71,6 +75,6 @@ jobs:
         with:
           name: e2e-boot
           path: |
-            out/e2e-boot.log
-            out/e2e-boot.png
+            out/e2e-boot*.log
+            out/e2e-boot*.png
           if-no-files-found: ignore

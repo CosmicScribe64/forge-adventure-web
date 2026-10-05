@@ -42,11 +42,15 @@ jobs:
       - name: Compile to JavaScript, minified, with a source map
         run: TEAVM_OBFUSCATED=true TEAVM_SOURCE_MAP=true scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
 
-      - name: Boot smoke test
-        run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
+      - name: Assemble the site
+        run: scripts/build-site
 
-      - name: New game scenario
-        run: scripts/e2e-newgame || { tail -40 out/e2e-newgame.log; exit 1; }
+      # The release checks load the assembled site, not the build folder: from a subpath
+      # (/forge-adventure-web/) and with compression, as GitHub Pages serves it (scripts/serve-site). The
+      # desktop, Chromium phone and WebKit iPhone modes each run e2e-boot and e2e-newgame, and e2e-cycle
+      # runs on desktop. scripts/e2e-release prints a result line per run.
+      - name: Release checks on the assembled site
+        run: scripts/e2e-release site || { tail -40 out/release/*.out; exit 1; }
 
       - name: Keep the test logs and screenshots
         if: failure()
@@ -55,14 +59,10 @@ jobs:
           name: release-tests
           path: |
             out/selftest-js.log
-            out/e2e-boot.log
-            out/e2e-boot.png
-            out/e2e-newgame.log
-            out/e2e-newgame-*.png
+            out/release/
+            out/e2e-*.log
+            out/e2e-*.png
           if-no-files-found: ignore
-
-      - name: Assemble the site
-        run: scripts/build-site
 
       - uses: actions/configure-pages@v6
 
@@ -76,6 +76,42 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # After the deployment: load the live site in the desktop, Chromium phone and WebKit iPhone modes
+  # (scripts/e2e-release live, e2e-boot in each). A failure here can't undo the deployment, but it turns
+  # the run red the moment a release breaks on a phone. The URL gets the commit as a query parameter so a
+  # CDN that caches by URL doesn't serve the previous release's page; the check is tried three times,
+  # two minutes apart, because the CDN can take a while to serve the new files.
+  verify-live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Boot the live site on desktop, phone and iPhone
+        env:
+          LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          for attempt in 1 2 3; do
+            E2E_CACHE_BUST="$GITHUB_SHA-$attempt" scripts/e2e-release live && exit 0
+            echo "Attempt $attempt failed."
+            [ "$attempt" = 3 ] || sleep 120
+          done
+          exit 1
+
+      - name: Keep the logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-tests
+          path: |
+            out/release/
+            out/e2e-*.log
+            out/e2e-*.png
+          if-no-files-found: ignore
