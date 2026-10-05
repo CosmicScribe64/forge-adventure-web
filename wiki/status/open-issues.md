@@ -25,7 +25,10 @@ the change.
   textures) and the duel-only sprite sheets (2026-10-05, 98 MB at the menu) are now read on first use. Live textures at
   the phone-size menu are 74 MB (295 MB at the start of the day); a duel costs 225 MB.
   Skin sheet mipmaps are still on ([[memory-budget]], "Lazy sprite sheets"). Then the card
-  database (JS heap 277 MB).
+  database (JS heap 277 MB, of which about 190 MB is cards). Forge's lazy card loading would save
+  about 150 MB but leaves the database empty for the adventure reward and enemy code, which
+  enumerates it, so it needs a slim card index first ([[memory-budget]], "JS heap by owner").
+  The cheap first step is `CardType` creating its sets on first add (15 to 20 MB estimated).
 - [ ] **Phone rotation** after startup is untested. Filling the page and live resizes were done
   in Round 10. See [[screen-layout]].
 - [ ] **The battle UI layout** (portrait or landscape match screen) is chosen at load and doesn't

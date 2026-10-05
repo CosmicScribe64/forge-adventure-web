@@ -260,3 +260,15 @@ Next steps:
   reason. Selftest 39 of 39. A duel, the deck editor (list and image view) and the tutorial were
   played and looked the same; pickers, foils and custom skins were not exercised.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].
+
+## [2026-10-05] analysis | JS heap by owner and why lazy card loading is off (memory plan, card database)
+- Took heap snapshots at the menu and on the overworld, wrote `web/tools/heap-owners.js` (dominator
+  tree with `StaticData`, `CardDb` and `FModel` cut), and read `FModel`, `StaticData`,
+  `CardStorageReader`, `RewardData` and `CardUtil`. The top retainers are `CardFace` (90.6 MB),
+  `CardEdition` (26.2), `CardRules` (22.1), `PaperCard` (17.6) and shared strings (17.4); a `CardType`
+  alone is 32 MB over 35,900 faces, mostly empty sets. Duplicate strings waste only 12.9 MB.
+- Forced lazy loading on for `forge.web` in a throwaway build: menu JS heap 277.7 to 129.0 MB,
+  renderer 629 to 473 MB (desktop), 632 to 499 MB (phone size), overworld 902 to 770 MB. The reason
+  Forge turns it off on mobile still holds: the adventure reward code enumerates the whole database.
+  The experiment was reverted; no game code was changed.
+- Pages touched: [[memory-budget]], [[metrics]], [[open-issues]].

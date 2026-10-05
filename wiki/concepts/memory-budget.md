@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py]
+sources: [web/tools/heap-owners.js, NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py]
 updated: 2026-10-05
 tags: [memory, phones, performance]
 ---
@@ -350,6 +350,72 @@ paths need a non-default skin directory, which the web build doesn't have), and 
 The first duel now reads about 33 MB of sheets while the transition screen is showing; its
 cost was not timed.
 
+## JS heap by owner and lazy card loading (2026-10-05)
+
+**Method.** `webtest` step `snapshot` at the main menu (headless, software GL, desktop 1280x720,
+seed 1, build bf3b5ad), then `web/tools/heap-owners.js`, which builds the dominator tree and cuts
+`StaticData`, `CardDb`, `FModel` and `CardStorageReader` so that data shared by several maps is
+attributed to its own class instead of to one global root. The snapshot reaches 471 MB, of which
+the JS heap is 277 MB.
+
+| Owner (top-level retained size) | Size | Notes |
+|---|---|---|
+| `CardFace` (35,661 faces) | 90.6 MB | `CardType` 32.3, SVar `TreeMap`s 16.5, oracle text 9.1, mana cost 7.6, triggers 7.2, abilities 6.7, keywords 2.9, static abilities 2.5 |
+| `CardEdition` (683) | 26.2 MB | The per-set lookup multimap 10.5, 82,000 strings 6.1, 99,000 `EditionEntry` 5.3 |
+| `CardRules` (34,048) | 22.1 MB | Empty `specializedParts` maps 5.7, `CardAiHints` 4.7, face lists 4.0, normalized names 3.0 |
+| `PaperCard` (97,786) | 17.6 MB | Sortable names 6.4, object properties 6.3 |
+| Strings shared between the above | 17.4 MB | 273,000 `String` objects |
+| Two `CardDb` multimaps and 557 `TreeMap`s | about 16 MB | `allCardsByName`, `allCardsByRules`, and others |
+
+Not JS objects, but in the same snapshot: the `app.js` source 72.6 MB, the libGDX and window wasm
+memories 80 MB, the `WebFileSystem` startup pack 21.3 MB (still held at the menu, because not all of
+its files have been read) and the virtual file tree (`Node`, 15.6 MB, one entry per resource file).
+The card database in total is about 190 MB of the 277 MB.
+
+Two facts about the waste. First, a `CardType` costs about 900 bytes whatever it holds: an empty
+`excludedCreatureSubtypes` set (7.5 MB in all), mostly empty supertypes (6.0 MB), and a subtypes set
+(11.7 MB) even for lands and spells. Creating those sets on first add is a small change inside
+`CardType` that could go upstream; it was not made (see below), and an estimate is 15 to 20 MB of heap.
+Second, identical strings are not the problem: 479,000 duplicate copies waste only 12.9 MB
+(`SVar:DBCleanup` lines, "Human", "Flying" and the like), so interning would save under 5 percent.
+
+**Why lazy card loading is off on mobile, and whether it applies here.** `FModel` sets
+`loadCardsLazily` to false when `GuiBase.isMobile()`, with the comment "unless proven to work on
+mobile". In lazy mode `CardDb` starts empty and a card is parsed only when something asks for it by
+name (`attemptToLoadCard`); only seven game effects and `GameFormat.getAllCards` call
+`ensureAllCardsLoaded`. The adventure code enumerates the whole database at startup instead:
+`Config` calls `RewardData.getAllCards()`, which filters `CardUtil.getFullCardPool` by rules (keywords,
+AI hints, editions). Shop stock, loot, enemy decks, the Spell Smith and `FModel.getAllCards` (the
+deck editor catalog) all work from lists built that way. So the reason still holds in the browser.
+The web build is `isMobile()` and has the same code.
+
+**Measured upper bound** (a throwaway build with lazy loading forced on for `forge.web`, nothing
+reverted in the repository): the database is still indexed at startup, which parses all 33,980
+scripts once ("indexed 35240 card names from 33980 files in 5.7 s", the same cost as the eager
+load), but keeps none.
+
+| Measure | Eager (bf3b5ad) | Lazy forced on |
+|---|---|---|
+| Menu, desktop: JS heap, renderer, GPU | 277.7 MB, 629 MB, 236 MB | 129.0 MB, 473 MB, 263 MB |
+| Menu, phone size: JS heap, renderer, GPU | 277.3 MB, 632 MB, 213 MB | 128.8 MB, 499 MB, 212 MB |
+| Overworld, desktop: JS heap, renderer | 304.5 MB, 902 MB | 156.4 MB, 770 MB |
+
+Phone-size backing stores grew from 191 to 222 MB because the card zip is read again after the idle
+trim. The starter deck loads and the deck editor listed the 40 cards. Rewards and enemy decks were not
+checked in play (the duel run found no encounter), but the code above says they draw from the cards
+loaded at startup, which is almost none. So lazy loading as Forge has it saves about 150 MB and breaks
+rewards, shops and enemy decks.
+
+**What a working version needs.** A slim index that is complete for enumeration: every card keeps
+name, type, colors, mana cost, power and toughness, oracle text (the text filter needs it), rarity and
+the AI hints (`RemAIDecks` and similar flags used by the reward filters), and `hasKeyword` for the
+ante filter. Everything the game engine alone reads (abilities, triggers, static abilities, replacement
+effects, SVars, keywords) would be parsed on first use from the zip. Those are about 36 MB of the
+277 MB heap, and the zip held back costs about 34 MB (27.5 MB data and 6.5 MB entries), so the net saving
+is small. The big gain of the experiment came from not keeping `CardType`, SVar maps and mana costs for
+cards that are never played, and a slim index would keep type and cost. Estimated net: 20 to 40 MB for a
+medium-sized change to `CardFace` and `CardRules`. Cheaper first: the `CardType` change above.
+
 ## Findings for phones (2026-10-01)
 
 The user's phone is an iPhone running Chrome. Every iOS browser uses WebKit, which has some of
@@ -381,8 +447,9 @@ Next steps, in order:
    escaping non-Latin-1 characters, which saved 72 MB at the menu.
 5. Reduce GPU textures (see "GPU memory" above): lazy large fonts, duel-only sprite sheets,
    no mipmaps. Up to about 200 MB of the 296 MB at the menu.
-6. Shrink the card database itself (shared strings, smaller per-card structures), since lazy
-   loading can't be used.
+6. Shrink the card database itself: first the `CardType` empty sets, then the empty `specializedParts`
+   maps, then a slim card index with script details read on first use (see "JS heap by owner" above).
+   Forge's lazy loading can't be used as it is.
 7. Test on a real iPhone, or in WebKit through Playwright, at each step.
 - Release the minimap pixmap after upload.
 - An LRU-capped card image cache (art from [[scryfall]] is cached in memory, unbounded).
