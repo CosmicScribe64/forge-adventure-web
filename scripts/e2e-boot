@@ -3,27 +3,27 @@
 # headless Chromium and checks that the loading bar reached 100%, the title screen came up and the
 # console has no unexpected errors (the known harmless ones are listed in web/tools/webtest.py).
 # Needs scripts/build-web and scripts/build-webdata first. Exit code 0 only if everything held.
-# Log: out/e2e-boot.log, screenshot: out/e2e-boot.png. PORT sets the server port (default 8090);
-# SERVER=0 uses a server that is already running there instead of starting one.
+# Log: out/e2e-boot.log, screenshot: out/e2e-boot.png (with -phone or -iphone before the extension for
+# those devices). PORT sets the server port (default 8090). The device (desktop, phone, iphone), URL and
+# SERVER are explained in scripts/e2e-common. Usage: scripts/e2e-boot [desktop|phone|iphone]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${PORT:-8090}"
 cd "$ROOT"
 mkdir -p out
 
-if [ "${SERVER:-1}" != 0 ]; then
-  docker rm -f forge-web-serve >/dev/null 2>&1 || true
-  PORT="$PORT" "$ROOT/scripts/serve-web" >/dev/null 2>&1 &
-  trap 'docker rm -f forge-web-serve >/dev/null 2>&1 || true' EXIT
-  for _ in $(seq 1 60); do
-    curl -fsS -o /dev/null "http://localhost:$PORT/index.html" 2>/dev/null && break
-    sleep 1
-  done
-fi
+. "$ROOT/scripts/e2e-common"
+e2e_start_server
+
+# On a phone the title screen's New Game button reaches up to the top centre, where the page's full screen
+# button used to sit over it for the first seconds and take the taps. The button now stays hidden on touch
+# screens, so nothing but the game may be under the top centre once the title screen is up.
+TOUCH_CHECK=""
+[ "$DEVICE" != desktop ] && TOUCH_CHECK="expect document.elementFromPoint(innerWidth / 2, 20).id !== 'fullscreen';"
 
 # Waiting is on game state, not on a fixed delay; --max-time is the overall limit.
-"$ROOT/scripts/webtest" --url "http://host.docker.internal:$PORT/index.html?test=1&seed=1" \
+"$ROOT/scripts/webtest" --url "$GAME_URL" "${DEVICE_ARGS[@]}" \
   --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-300}" \
-  --init-script web/tools/loader-watch.js --log out/e2e-boot.log \
-  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 3; shot out/e2e-boot.png; expect window.__fillMax==100; no-errors" \
+  --init-script web/tools/loader-watch.js --log "out/e2e-boot$SUFFIX.log" \
+  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 3; shot out/e2e-boot$SUFFIX.png; expect window.__fillMax==100; $TOUCH_CHECK no-errors" \
   | grep -vE '^\[ *[0-9.]+s\] \[hb\]'

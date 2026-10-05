@@ -7,6 +7,9 @@ Run it through scripts/webtest, for example:
 Steps (separated by ';'):
   wait <seconds>           let the game run
   click <x> <y>            click at page coordinates (viewport is --width x --height)
+  tap <button text>        real input on a button: asks the game where the button is (api where) and taps it with
+                           the touchscreen in a touch context, or clicks it with the mouse otherwise. Unlike
+                           `api click`, which calls the stage directly, this goes through the browser's input path
   wheel <x> <y> <dy> [<n>] scroll the mouse wheel n times (default 1) by dy pixels, with the pointer at x y
   key <name>               press a key (Playwright key names, e.g. Enter, Escape, ArrowUp)
   hold <name> <seconds>    hold a key down (movement keys need this; a press is too short)
@@ -50,6 +53,14 @@ Steps (separated by ';'):
                            whose message, or a function name in whose stack, contains <match>
                            count, and the others are resumed silently. Gives up after <seconds>
                            (default 30) without one.
+--browser chromium|webkit|firefox picks the engine (default chromium). --device "iPhone 13" applies one
+of Playwright's device descriptors (viewport, scale, user agent, mobile, touch), and --phone is a
+Chromium phone of 390x844 at scale 3 with a mobile user agent. In a touch context `click` taps with the
+touchscreen (touchstart, touchend), as a finger does. Only Chromium has the DevTools protocol, so `heap`,
+`snapshot`, `profile`, `stacks`, `exceptions`, --latency and --mbps need it. `measure` works everywhere but
+reports what the engine offers: renderer RSS from /proc (WPEWebProcess for the WebKit that Playwright ships on Linux), the JS heap only in
+Chromium (WebKit has no performance.memory), and the page's own counters (textures, pixmap heap, wasm
+memory). `assert-max` on a value the engine can't report prints "skipped" instead of failing.
 --latency <ms> and --mbps <n> emulate a hosted page (round-trip delay, bandwidth) with Chrome's
 network emulation.
 --interactive <file>: after the steps, keep the page open and run each new line appended to
@@ -87,7 +98,7 @@ ROOT = "/work"
 # Each entry is (regular expression searched in the message, why it is harmless). Keep this short:
 # every line here is a line a real bug could hide behind.
 ALLOWED_ERRORS = [
-    (r"^Failed to load: fallback_skin/(title_bg_lq|transition)\.png!\. Creating dummy texture\.",
+    (r"^Failed to load: fallback_skin/(title_bg_lq|title_bg_lq_portrait|transition)\.png!\. Creating dummy texture\.",
      "Forge's Assets loads the fallback skin before the real skin; its two images are read through "
      "a path that is not there yet. The real skin loads right after (ui/title_bg.png ... Found!)."),
     (r"^The card .* was not assigned to any set\. Adding it to UNKNOWN set",
@@ -101,6 +112,27 @@ ALLOWED_ERRORS = [
      "being thrown, from an optional file that Forge probes and handles (the same boot also logs "
      "'Error reading matrix data: FileNotFoundException' at info level)."),
 ]
+
+
+# What a page can say about its own memory in any engine. performance.memory is Chromium only and
+# measureUserAgentSpecificMemory needs cross-origin isolation, so most engines return little; the wasm
+# memories are found the way the `heap` step finds them.
+MEMORY_JS = """async () => {
+    const o = {wasm: 0};
+    if (performance.memory) o.heap = performance.memory.usedJSHeapSize / 1048576;
+    for (const k of Object.keys(window)) {
+        try {
+            const v = window[k];
+            const buf = v && v.HEAP8 ? v.HEAP8.buffer : (v instanceof WebAssembly.Memory ? v.buffer : null);
+            if (buf) o.wasm += buf.byteLength / 1048576;
+        } catch (e) {}
+    }
+    o.wasm = Math.round(o.wasm);
+    if (performance.measureUserAgentSpecificMemory && self.crossOriginIsolated) {
+        try { o.uam = (await performance.measureUserAgentSpecificMemory()).bytes / 1048576; } catch (e) {}
+    }
+    return o;
+}"""
 
 
 def allowed_index(text):
@@ -169,9 +201,16 @@ def chromium_stats():
         try:
             with open(f"/proc/{pid}/cmdline", "rb") as f:
                 cmd = f.read().decode(errors="replace")
-            if "chrom" not in cmd:
+            if "chrom" in cmd:
+                kind = "renderer" if "--type=renderer" in cmd else "gpu" if "--type=gpu-process" in cmd else None
+            elif "WebKitWebProcess" in cmd or "WPEWebProcess" in cmd:
+                kind = "renderer"
+            elif "WebKitGPUProcess" in cmd:
+                kind = "gpu"
+            elif "firefox" in cmd or "plugin-container" in cmd:
+                kind = "renderer" if "tab" in cmd else None
+            else:
                 continue
-            kind = "renderer" if "--type=renderer" in cmd else "gpu" if "--type=gpu-process" in cmd else None
             if kind is None:
                 continue
             with open(f"/proc/{pid}/stat") as f:
@@ -224,6 +263,11 @@ def main():
     ap.add_argument("--height", type=int, default=720)
     ap.add_argument("--scale", type=float, default=1, help="device pixel ratio (phones are 2-3)")
     ap.add_argument("--mobile", action="store_true", help="emulate a phone: mobile viewport and touch")
+    ap.add_argument("--browser", default="chromium", choices=["chromium", "webkit", "firefox"],
+                    help="browser engine (the Playwright image has all three)")
+    ap.add_argument("--device", help='a Playwright device descriptor, for example "iPhone 13"')
+    ap.add_argument("--phone", action="store_true",
+                    help="Chromium phone: 390x844 at scale 3, mobile, touch, a mobile user agent")
     ap.add_argument("--wait", type=float, default=0, help="seconds to wait before the steps")
     ap.add_argument("--shot", help="screenshot after the initial wait")
     ap.add_argument("--init-script", help="JavaScript file to run in every page before its own scripts (hooks)")
@@ -332,13 +376,27 @@ def main():
             print(f"screenshot failed ({path}): {e}")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=[
-            "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
-            "--enable-webgl", "--disable-dev-shm-usage",
-        ])
-        page = browser.new_page(viewport={"width": args.width, "height": args.height},
-                                device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile,
-                                storage_state=args.load_state or None)
+        chromium = args.browser == "chromium"
+        if chromium:
+            browser = p.chromium.launch(args=[
+                "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
+                "--enable-webgl", "--disable-dev-shm-usage",
+            ])
+        else:
+            browser = getattr(p, args.browser).launch()
+        if args.device:
+            ctx = dict(p.devices[args.device])
+        elif args.phone:
+            ctx = dict(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True,
+                       user_agent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) "
+                                  "Chrome/140.0.0.0 Mobile Safari/537.36")
+        else:
+            ctx = dict(viewport={"width": args.width, "height": args.height},
+                       device_scale_factor=args.scale, is_mobile=args.mobile, has_touch=args.mobile)
+        touch = bool(ctx.get("has_touch"))
+        print(f"browser: {args.browser} {browser.version}; context: "
+              f"{ {k: v for k, v in ctx.items() if k != 'user_agent'} }; user agent: {ctx.get('user_agent', '(default)')}", flush=True)
+        page = browser.new_page(storage_state=args.load_state or None, **ctx)
         if args.init_script:
             page.add_init_script(path=args.init_script)
         def save_state():
@@ -359,22 +417,27 @@ def main():
                 pass
 
         page.on("requestfinished", on_request_finished)
+        # A browser's own "Failed to load resource" console line names no URL (WebKit, Chromium for a 404),
+        # so log the URL here, as [netfail] lines in the log (not counted as errors).
+        page.on("response", lambda r: emit(f"[{time.time() - start:7.1f}s] [netfail] {r.status} {r.url}")
+                if r.status >= 400 else None)
+        page.on("requestfailed", lambda r: emit(f"[{time.time() - start:7.1f}s] [netfail] {r.failure} {r.url}"))
         page.on("crash", lambda *_: crashed.append(True))
-        if args.latency or args.mbps:
+        if (args.latency or args.mbps) and chromium:
             net = page.context.new_cdp_session(page)
             net.send("Network.enable")
             net.send("Network.emulateNetworkConditions", {
                 "offline": False, "latency": args.latency,
                 "downloadThroughput": args.mbps * 125000 if args.mbps else -1, "uploadThroughput": -1})
         dbg = None
-        if "stacks" in args.steps or "exceptions" in args.steps or args.interactive:
+        if chromium and ("stacks" in args.steps or "exceptions" in args.steps or args.interactive):
             # Must be attached before load: once the page is busy it can't be enabled.
             dbg = page.context.new_cdp_session(page)
             dbg.send("Debugger.enable")
             paused_events = []
             dbg.on("Debugger.paused", lambda e: paused_events.append(e))
         heap_cdp = None
-        if args.heap_sampling:
+        if args.heap_sampling and chromium:
             heap_cdp = page.context.new_cdp_session(page)
             heap_cdp.send("HeapProfiler.enable")
             heap_cdp.send("HeapProfiler.startSampling", {"samplingInterval": 32768})
@@ -392,7 +455,23 @@ def main():
                 if cmd == "wait":
                     pump(float(parts[1]))
                 elif cmd == "click":
-                    page.mouse.click(float(parts[1]), float(parts[2]))
+                    if touch:
+                        page.touchscreen.tap(float(parts[1]), float(parts[2]))
+                    else:
+                        page.mouse.click(float(parts[1]), float(parts[2]))
+                elif cmd == "tap":
+                    text = step[len("tap"):].strip()
+                    where = json.loads(page.evaluate("t => window.forgeTest.cmd('where ' + t)", text))
+                    if "error" in where:
+                        fail(f"tap {text}: {where['error']}")
+                    # The game reports canvas pixels; the canvas may be scaled to the page by CSS.
+                    k = page.evaluate("() => document.getElementById('canvas').clientWidth") / where["w"]
+                    x, y = where["x"] * k, where["y"] * k
+                    if touch:
+                        page.touchscreen.tap(x, y)
+                    else:
+                        page.mouse.click(x, y)
+                    print(f"tap {text}: ({x:.0f}, {y:.0f})", flush=True)
                 elif cmd == "wheel":
                     page.mouse.move(float(parts[1]), float(parts[2]))
                     for _ in range(int(parts[4]) if len(parts) > 4 else 1):
@@ -587,28 +666,39 @@ def main():
                         fail(f"until-state {cond}: not reached in {limit}s; last state: {json.dumps(state)[:300]}")
                     print(f"until-state '{cond}': reached after {time.time() - (end - float(limit)):.0f}s", flush=True)
                 elif cmd == "measure":
-                    cdp = heap_cdp or page.context.new_cdp_session(page)
-                    cdp.send("HeapProfiler.collectGarbage")
-                    usage = cdp.send("Runtime.getHeapUsage")
+                    usage = None
+                    if chromium:
+                        cdp = heap_cdp or page.context.new_cdp_session(page)
+                        cdp.send("HeapProfiler.collectGarbage")
+                        usage = cdp.send("Runtime.getHeapUsage")
                     stats = chromium_stats()
                     gl = page.evaluate("() => window.__gl ? window.__gl.summary(0) : null")
                     pm = page.evaluate("() => window.forgePixmaps || null")
+                    js = page.evaluate(MEMORY_JS)
+                    heap = round(usage["usedSize"] / 1048576, 1) if usage else (
+                        round(js["heap"], 1) if js.get("heap") is not None else None)
                     measured[parts[1]] = {
                         "pix": pm["heapMB"] if pm else None,
                         "pixlive": pm["live"] if pm else None,
-                        "rss": round(stats.get("renderer", (0, 0))[0]),
-                        "gpu": round(stats.get("gpu", (0, 0))[0]),
-                        "heap": round(usage["usedSize"] / 1048576, 1),
+                        "rss": round(stats["renderer"][0]) if "renderer" in stats else None,
+                        "gpu": round(stats["gpu"][0]) if "gpu" in stats else None,
+                        "heap": heap,
                         "tex": round(gl["texMB"], 1) if gl else None,
+                        "wasm": js.get("wasm"),
+                        "uam": round(js["uam"], 1) if js.get("uam") is not None else None,
                     }
-                    print(f"measure {parts[1]}: renderer rss {measured[parts[1]]['rss']} MB, js heap "
-                          f"{measured[parts[1]]['heap']} MB, texture {measured[parts[1]]['tex']} MB, "
-                          f"gpu rss {measured[parts[1]]['gpu']} MB, wasm pixmap heap {measured[parts[1]]['pix']} MB "
-                          f"({measured[parts[1]]['pixlive']} live)", flush=True)
+                    m = measured[parts[1]]
+                    print(f"measure {parts[1]} ({args.browser}): renderer rss {m['rss']} MB, js heap {m['heap']} MB, "
+                          f"texture {m['tex']} MB, gpu rss {m['gpu']} MB, wasm pixmap heap {m['pix']} MB "
+                          f"({m['pixlive']} live), wasm memories {m['wasm']} MB, "
+                          f"measureUserAgentSpecificMemory {m['uam']} MB", flush=True)
                 elif cmd == "assert-max":
                     name, field = parts[1].split(".")
                     limit = float(parts[2])
                     value = measured.get(name, {}).get(field)
+                    if value is None and not chromium and name in measured:
+                        print(f"assert-max skipped: {parts[1]} is not measurable in {args.browser}", flush=True)
+                        continue
                     if value is None:
                         fail(f"assert-max {parts[1]}: no such measurement (run `measure {name}` first, "
                              "and give --init-script web/tools/glhook.js for tex)")
@@ -621,6 +711,9 @@ def main():
                     margin = float(parts[3])
                     a = measured.get(a_name, {}).get(field)
                     b = measured.get(b_name, {}).get(field2)
+                    if (a is None or b is None) and not chromium and a_name in measured and b_name in measured:
+                        print(f"assert-growth skipped: {parts[1]} or {parts[2]} is not measurable in {args.browser}", flush=True)
+                        continue
                     if a is None or b is None:
                         fail(f"assert-growth {parts[1]} {parts[2]}: missing measurement")
                     elif b - a > margin:

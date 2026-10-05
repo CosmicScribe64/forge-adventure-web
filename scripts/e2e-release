@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# The release checks in one command: runs the end-to-end scenarios (scripts/e2e-boot, e2e-newgame and
+# e2e-cycle) in the desktop, Chromium phone and WebKit iPhone modes (scripts/e2e-common), keeps going
+# after a failure, and prints one line per run (result, seconds) at the end. Exit code 1 if any run failed.
+#   scripts/e2e-release site   (default) the assembled site, as pages.yml checks it before deploying:
+#                              starts scripts/serve-site (needs scripts/build-site first), so the pages are
+#                              loaded from a subpath with compression, as on GitHub Pages. All three
+#                              scenarios, e2e-cycle on desktop only (CYCLE=all adds the phone modes).
+#   scripts/e2e-release live   the deployed site, after a release: e2e-boot only, in all three modes.
+#                              LIVE_URL overrides https://cosmicscribe64.github.io/forge-adventure-web/
+# ONLY="boot-iphone newgame-phone" runs just those. Output of each run: out/release/<name>.out.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+MODE="${1:-site}"
+mkdir -p out/release
+PORT="${PORT:-8097}"
+case "$MODE" in
+  site)
+    "$ROOT/scripts/serve-site"
+    trap 'docker rm -f forge-site-serve >/dev/null 2>&1 || true' EXIT
+    export URL="http://host.docker.internal:$PORT/forge-adventure-web/"
+    RUNS="boot-desktop boot-phone boot-iphone newgame-desktop newgame-phone newgame-iphone cycle-desktop"
+    [ "${CYCLE:-}" = all ] && RUNS="$RUNS cycle-phone cycle-iphone" ;;
+  live)
+    export URL="${LIVE_URL:-https://cosmicscribe64.github.io/forge-adventure-web/}"
+    RUNS="boot-desktop boot-phone boot-iphone" ;;
+  *) echo "usage: scripts/e2e-release [site|live]" >&2; exit 2 ;;
+esac
+RUNS="${ONLY:-$RUNS}"
+
+results=()
+failed=0
+for run in $RUNS; do
+  scenario="${run%%-*}"; device="${run#*-}"
+  echo "=== $run ($(date +%H:%M:%S))"
+  start=$SECONDS
+  "$ROOT/scripts/e2e-$scenario" "$device" 2>&1 | tee "out/release/$run.out"
+  rc=${PIPESTATUS[0]}
+  secs=$((SECONDS - start))
+  if [ "$rc" = 0 ]; then results+=("pass  ${secs}s  $run"); else results+=("FAIL  ${secs}s  $run (exit code $rc)"); failed=1; fi
+done
+echo
+echo "=== results for $MODE ($URL)"
+printf '%s\n' "${results[@]}"
+exit $failed

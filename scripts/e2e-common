@@ -1,0 +1,40 @@
+# Shared by scripts/e2e-boot, e2e-newgame and e2e-cycle (sourced, not run). Sets the device, the URL
+# and the server. Expects ROOT and PORT to be set by the caller.
+#
+# Device: the first argument or DEVICE, one of
+#   desktop  headless Chromium, 1280x720 at scale 1 (the default),
+#   phone    Chromium emulating a phone: 390x844, scale 3, mobile, touch (taps), mobile user agent,
+#   iphone   WebKit with Playwright's "iPhone 13" descriptor (WebKit is what every iPhone browser
+#            runs, Chrome and Safari alike). IPHONE_DEVICE picks another descriptor.
+# Where to load the game: by default scripts/serve-web serves the build on PORT. URL=<site root>
+# loads a site that is already running instead (for example the release rehearsal on a subpath,
+# URL=http://host.docker.internal:8097/forge-adventure-web/, or the live site,
+# URL=https://cosmicscribe64.github.io/forge-adventure-web/); no server is started then.
+# E2E_CACHE_BUST=<text> adds a query parameter to the page URL, so a CDN that caches by URL serves the
+# current index.html (the post-deploy check passes the commit). SERVER=0 uses a server that is already running on PORT. Log and screenshot names get the device as
+# a suffix unless it is desktop.
+DEVICE="${1:-${DEVICE:-desktop}}"
+case "$DEVICE" in
+  desktop) DEVICE_ARGS=(); SUFFIX="" ;;
+  phone)   DEVICE_ARGS=(--phone); SUFFIX="-phone" ;;
+  iphone)  DEVICE_ARGS=(--browser webkit --device "${IPHONE_DEVICE:-iPhone 13}"); SUFFIX="-iphone" ;;
+  *) echo "unknown device '$DEVICE' (desktop, phone or iphone)" >&2; exit 2 ;;
+esac
+if [ -n "${URL:-}" ]; then
+  GAME_URL="${URL%/}/index.html?test=1&seed=1${E2E_CACHE_BUST:+&cb=$E2E_CACHE_BUST}"
+  SERVER=0
+else
+  GAME_URL="http://host.docker.internal:$PORT/index.html?test=1&seed=1"
+fi
+
+e2e_start_server() {
+  if [ "${SERVER:-1}" != 0 ]; then
+    docker rm -f forge-web-serve >/dev/null 2>&1 || true
+    PORT="$PORT" "$ROOT/scripts/serve-web" >/dev/null 2>&1 &
+    trap 'docker rm -f forge-web-serve >/dev/null 2>&1 || true' EXIT
+    for _ in $(seq 1 60); do
+      curl -fsS -o /dev/null "http://localhost:$PORT/index.html" 2>/dev/null && break
+      sleep 1
+    done
+  fi
+}

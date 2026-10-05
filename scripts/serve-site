@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Serve the assembled site (web/build/site, from scripts/build-site) the way GitHub Pages serves it: under
+# the subpath /forge-adventure-web/ and with compression (web/tools/serve-compressed.py), in a detached
+# container. Stop it with: docker rm -f forge-site-serve
+#   http://localhost:$PORT/forge-adventure-web/   (PORT defaults to 8097)
+# From a container (scripts/webtest): http://host.docker.internal:$PORT/forge-adventure-web/
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${PORT:-8097}"
+[ -f "$ROOT/web/build/site/index.html" ] || { echo "web/build/site is missing; run scripts/build-site first" >&2; exit 1; }
+docker rm -f forge-site-serve >/dev/null 2>&1 || true
+docker run -d --rm --name forge-site-serve -p "$PORT:8080" \
+  -v "$ROOT/web/build/site":/srv/forge-adventure-web:ro \
+  -v "$ROOT/web/tools/serve-compressed.py":/serve.py:ro \
+  -w /srv forge-adventure-web-build python3 /serve.py 8080 >/dev/null
+for _ in $(seq 1 60); do
+  curl -fsS -o /dev/null "http://localhost:$PORT/forge-adventure-web/index.html" 2>/dev/null && break
+  sleep 1
+done
+curl -fsS -o /dev/null "http://localhost:$PORT/forge-adventure-web/index.html"
+echo "serving web/build/site at http://localhost:$PORT/forge-adventure-web/"

@@ -1,5 +1,6 @@
 package forgeweb.test;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -264,6 +265,7 @@ public final class WebTest {
             case "interact": return goTo(arg);
             case "stop": stopWalking("stopped"); return "{\"ok\":true}";
             case "click": return click(arg);
+            case "where": return where(arg);
             case "dismiss": return startDismiss();
             case "layout": return forge.adventure.stage.WebTestStageAccess.hudLayout();
             case "duel": return duelState();
@@ -421,6 +423,26 @@ public final class WebTest {
             if (fb.getText().toLowerCase(Locale.ROOT).contains(want)) {
                 fb.tap(fb.getWidth() / 2, fb.getHeight() / 2, 1);
                 return "{\"clicked\":" + q("[forge] " + fb.getText()) + "}";
+            }
+        }
+        return "{\"error\":" + q("no visible button matching '" + text + "'") + "}";
+    }
+
+    /**
+     * Where a visible button's centre is on screen, as {"x":..,"y":..,"w":..,"h":..} in the canvas's own pixels
+     * (libGDX screen coordinates, y down; w and h are the canvas size), so a test can send a real tap or click
+     * through the browser's input path instead of calling the stage as {@link #click} does.
+     */
+    static String where(String text) {
+        String want = text.toLowerCase(Locale.ROOT);
+        Scene scene = Forge.getCurrentScene();
+        for (Stage stage : scene == null ? new ArrayList<Stage>() : WebTestAccess.uiStagesOf(scene)) {
+            Button b = findButton(stage.getRoot(), want);
+            if (b != null) {
+                Vector2 c = b.localToStageCoordinates(new Vector2(b.getWidth() / 2, b.getHeight() / 2));
+                Vector2 s = stage.stageToScreenCoordinates(c);
+                return "{\"x\":" + s.x + ",\"y\":" + s.y + ",\"w\":" + Gdx.graphics.getWidth()
+                        + ",\"h\":" + Gdx.graphics.getHeight() + "}";
             }
         }
         return "{\"error\":" + q("no visible button matching '" + text + "'") + "}";

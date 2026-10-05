@@ -9,15 +9,17 @@
 # Needs scripts/build-web and scripts/build-webdata first. Exit code 0 only if everything held.
 # Log: out/e2e-newgame.log, screenshots: out/e2e-newgame-menu.png and out/e2e-newgame-world.png.
 # PORT sets the server port (default 8090); SERVER=0 uses a server that is already running there.
-# EXTRA adds webtest arguments (the limits below are for the desktop window, so a phone-size run
-# should expect different texture numbers).
+# EXTRA adds webtest arguments. The device (desktop, phone, iphone), URL and SERVER are explained in
+# scripts/e2e-common; usage: scripts/e2e-newgame [desktop|phone|iphone]. The limits below are
+# for desktop and phone (each has its own block); WebKit can't report process memory the way Chromium
+# does, so the iphone run asserts function only and prints what it can measure.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${PORT:-8090}"
 cd "$ROOT"
 mkdir -p out
 
-# Limits in MB, all in this one place. Set on 2026-10-05 from the minified build (the release build,
+# Desktop limits in MB, all in this one place. Set on 2026-10-05 from the minified build (the release build,
 # TEAVM_OBFUSCATED=true) on desktop 1280x720, headless Chromium with software GL (SwiftShader) in the
 # Playwright container, seed 1, default 700x700 world, 4 cores (so 3 WFC workers), after the commits
 # "Terminate the WFC worker pool", "Drop the JS copy of big pixmaps", "Size WorldBackground's chunk
@@ -51,22 +53,50 @@ WORLD_TEX_MAX=130
 WORLD_PIX_MAX=45
 WORLD_RSS_RISE_MAX=140
 
-if [ "${SERVER:-1}" != 0 ]; then
-  docker rm -f forge-web-serve >/dev/null 2>&1 || true
-  PORT="$PORT" "$ROOT/scripts/serve-web" >/dev/null 2>&1 &
-  trap 'docker rm -f forge-web-serve >/dev/null 2>&1 || true' EXIT
-  for _ in $(seq 1 60); do
-    curl -fsS -o /dev/null "http://localhost:$PORT/index.html" 2>/dev/null && break
-    sleep 1
-  done
+# Phone limits: Chromium emulating a phone (390x844, scale 3, mobile, touch, mobile user agent), same build,
+# seed and machine as above. Measured 2026-10-05 on the minified build: at the title screen RSS 576 MB, heap
+# 245.8 MB, textures 73.5 MB, pixmap heap 7 MB; at the overworld RSS 687, heap 267.6, textures 122.2, pixmap
+# heap 40, RSS rise 111. These equal the desktop numbers within a few MB, because the game draws into a canvas
+# of CSS pixels (390x844, not 1170x2532 device pixels), so a phone costs no extra texture or framebuffer memory.
+# The margins are the same as for desktop. A real iPhone has a lower memory limit than this container, which this
+# test can't show (see the iphone run, wiki/concepts/memory-budget.md).
+PHONE_MENU_RSS_MAX=680
+PHONE_MENU_HEAP_MAX=265
+PHONE_MENU_TEX_MAX=80
+PHONE_MENU_PIX_MAX=10
+PHONE_WORLD_RSS_MAX=790
+PHONE_WORLD_HEAP_MAX=288
+PHONE_WORLD_TEX_MAX=130
+PHONE_WORLD_PIX_MAX=45
+PHONE_WORLD_RSS_RISE_MAX=140
+
+. "$ROOT/scripts/e2e-common"
+case "$DEVICE" in
+  phone)
+    MENU_RSS_MAX=$PHONE_MENU_RSS_MAX; MENU_HEAP_MAX=$PHONE_MENU_HEAP_MAX; MENU_TEX_MAX=$PHONE_MENU_TEX_MAX; MENU_PIX_MAX=$PHONE_MENU_PIX_MAX
+    WORLD_RSS_MAX=$PHONE_WORLD_RSS_MAX; WORLD_HEAP_MAX=$PHONE_WORLD_HEAP_MAX; WORLD_TEX_MAX=$PHONE_WORLD_TEX_MAX; WORLD_PIX_MAX=$PHONE_WORLD_PIX_MAX
+    WORLD_RSS_RISE_MAX=$PHONE_WORLD_RSS_RISE_MAX ;;
+esac
+if [ "$DEVICE" = iphone ]; then
+  MENU_ASSERTS=""; WORLD_ASSERTS=""   # recorded, not asserted (see the header)
+else
+  MENU_ASSERTS="assert-max menu.rss $MENU_RSS_MAX; assert-max menu.heap $MENU_HEAP_MAX; assert-max menu.tex $MENU_TEX_MAX; assert-max menu.pix $MENU_PIX_MAX;"
+  WORLD_ASSERTS="assert-max world.rss $WORLD_RSS_MAX; assert-max world.heap $WORLD_HEAP_MAX; assert-max world.tex $WORLD_TEX_MAX; assert-max world.pix $WORLD_PIX_MAX; assert-growth menu.rss world.rss $WORLD_RSS_RISE_MAX;"
 fi
+e2e_start_server
+
+# The buttons are pressed with real input (the webtest step `tap`: a touch tap on a phone, a mouse click on
+# desktop). NEWGAME_INPUT=api calls the stage directly instead, for a build older than the harness's `where`
+# command (the live 0.1.1 site).
+CLICK=tap
+[ "${NEWGAME_INPUT:-tap}" = api ] && CLICK="api click"
 
 # Waiting is on game state and console lines, not fixed delays, except the 10 s after world
 # generation: the WFC workers are terminated 5 s after the last reply and the minimap's JS copy is
 # dropped 5 s after its last use, and the numbers are taken after both.
 # shellcheck disable=SC2086
-"$ROOT/scripts/webtest" --url "http://host.docker.internal:$PORT/index.html?test=1&seed=1" \
+"$ROOT/scripts/webtest" --url "$GAME_URL" "${DEVICE_ARGS[@]}" \
   --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-600}" ${EXTRA:-} \
-  --init-script web/tools/glhook.js --log out/e2e-newgame.log \
-  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; shot out/e2e-newgame-menu.png; measure menu; assert-max menu.rss $MENU_RSS_MAX; assert-max menu.heap $MENU_HEAP_MAX; assert-max menu.tex $MENU_TEX_MAX; assert-max menu.pix $MENU_PIX_MAX; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 10; shot out/e2e-newgame-world.png; measure world; assert-max world.rss $WORLD_RSS_MAX; assert-max world.heap $WORLD_HEAP_MAX; assert-max world.tex $WORLD_TEX_MAX; assert-max world.pix $WORLD_PIX_MAX; assert-growth menu.rss world.rss $WORLD_RSS_RISE_MAX; no-repeat-downloads 1; no-errors" \
+  --init-script web/tools/glhook.js --log "out/e2e-newgame$SUFFIX.log" \
+  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; shot out/e2e-newgame-menu$SUFFIX.png; measure menu; $MENU_ASSERTS $CLICK New Game; until 'ui/new_game' 60; wait 3; $CLICK start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 10; shot out/e2e-newgame-world$SUFFIX.png; measure world; $WORLD_ASSERTS no-repeat-downloads 1; no-errors" \
   | grep -vE '^\[ *[0-9.]+s\] \[hb\]'

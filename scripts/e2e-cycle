@@ -6,7 +6,10 @@
 #   - live WebGL texture memory (a town or world map tileset is 10 MB), game 3 vs game 1,
 #   - renderer RSS (game 3 vs game 2) and JS heap (game 3 vs game 1), with looser margins because they are noisier.
 # Margins in MB are below. Needs scripts/build-web and scripts/build-webdata first. Exit code 0
-# only if everything held. Log: out/e2e-cycle.log. PORT and SERVER work as in scripts/e2e-newgame.
+# only if everything held. Log: out/e2e-cycle.log (suffix -phone or -iphone for those devices). PORT, SERVER, URL and
+# the device argument work as in scripts/e2e-newgame (usage: scripts/e2e-cycle [desktop|phone|iphone]). The margins
+# compare games within one run, so they are the same on every device; WebKit reports no RSS or JS heap, so
+# those two checks print "skipped" there and the pixmap and texture checks still run.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${PORT:-8090}"
@@ -25,21 +28,14 @@ TEX_GROWTH=5
 RSS_GROWTH=45
 HEAP_GROWTH=15
 
-if [ "${SERVER:-1}" != 0 ]; then
-  docker rm -f forge-web-serve >/dev/null 2>&1 || true
-  PORT="$PORT" "$ROOT/scripts/serve-web" >/dev/null 2>&1 &
-  trap 'docker rm -f forge-web-serve >/dev/null 2>&1 || true' EXIT
-  for _ in $(seq 1 60); do
-    curl -fsS -o /dev/null "http://localhost:$PORT/index.html" 2>/dev/null && break
-    sleep 1
-  done
-fi
+. "$ROOT/scripts/e2e-common"
+e2e_start_server
 
 # Waiting is on game state and console lines, not fixed delays, except the 10 s after world
 # generation (the WFC workers and the minimap's JS copy are released 5 s after their last use).
 # shellcheck disable=SC2086
-"$ROOT/scripts/webtest" --url "http://host.docker.internal:$PORT/index.html?test=1&seed=1" \
+"$ROOT/scripts/webtest" --url "$GAME_URL" "${DEVICE_ARGS[@]}" \
   --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-900}" ${EXTRA:-} \
-  --init-script web/tools/glhook.js --log out/e2e-cycle.log \
+  --init-script web/tools/glhook.js --log "out/e2e-cycle$SUFFIX.log" \
   --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; measure menu; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 6; api dismiss; api click Where am I; api dismiss; api interact Adept Black Wizard; wait 3; api dismiss; api click Why am I here?; api dismiss; api click done; wait 2; api click done; wait 3; api dismiss; api goto portal; wait 8; api dismiss; until-state state.scene=='GameScene' 60; wait 10; measure g1; api click menu; wait 3; api click New Game; wait 2; wait 3; api click start; until-new 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 6; api dismiss; api click Where am I; api dismiss; api interact Adept Black Wizard; wait 3; api dismiss; api click Why am I here?; api dismiss; api click done; wait 2; api click done; wait 3; api dismiss; api goto portal; wait 8; api dismiss; until-state state.scene=='GameScene' 60; wait 10; measure g2; api click menu; wait 3; api click New Game; wait 2; wait 3; api click start; until-new 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 6; api dismiss; api click Where am I; api dismiss; api interact Adept Black Wizard; wait 3; api dismiss; api click Why am I here?; api dismiss; api click done; wait 2; api click done; wait 3; api dismiss; api goto portal; wait 8; api dismiss; until-state state.scene=='GameScene' 60; wait 10; measure g3; assert-growth g1.pix g3.pix $PIX_GROWTH; assert-growth g1.tex g3.tex $TEX_GROWTH; assert-growth g2.rss g3.rss $RSS_GROWTH; assert-growth g1.heap g3.heap $HEAP_GROWTH; no-errors" \
   | grep -vE '^\[ *[0-9.]+s\] \[hb\]'
