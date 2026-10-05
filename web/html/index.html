@@ -276,6 +276,9 @@
 
     // Called from Java when the game draws its first frame (forgeweb.compat.LoadingScreen).
     window.forgeLoadingDone = () => {
+        // Loading is over, so the bar ends full. Forge's last progress report can come after the
+        // fade has started, when it no longer moves the bar.
+        fill.style.width = "100%";
         loading.style.opacity = "0";
         setTimeout(() => loading.remove(), 450);
         if (document.documentElement.requestFullscreen) {

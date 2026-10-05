@@ -319,3 +319,10 @@ Next steps:
   `--save-state` and `--load-state`.
 - Pages touched: [[build-pipeline]], [[selftest]], [[saves]], [[metrics]], [[memory-budget]], [[open-issues]],
   [[webtest-harness]], [[pick-up-work]], [[stay-on-js-backend]].
+
+## [2026-10-05] fix | Loading bar ends full
+- CI's boot smoke test failed on `9b23f4b` with the loading bar at less than 100%, although the
+  game reached its title screen. Forge's last progress report can arrive after the loading screen
+  has started to fade, and from then on reports don't move the bar, so whether it reached 100%
+  depended on timing. `forgeLoadingDone` in `web/html/index.html` now sets the bar to 100% before
+  the fade. The earlier passing runs were timing luck.
