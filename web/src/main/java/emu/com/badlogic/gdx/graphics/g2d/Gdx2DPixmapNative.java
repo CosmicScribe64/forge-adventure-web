@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.teavm.classlib.impl.nio.Buffers;
 import org.teavm.jso.JSBody;
+import org.teavm.jso.JSFunctor;
+import org.teavm.jso.JSObject;
 import org.teavm.jso.typedarrays.Int32Array;
 import org.teavm.jso.typedarrays.Int8Array;
 
@@ -19,6 +21,11 @@ import org.teavm.jso.typedarrays.Int8Array;
 // (Code that keeps the ByteBuffer from an earlier getBuffer() must call it again after drawing.)
 // Also: the JS-side mirror `buffer` is only created by getBuffer() (texture upload, pixel access),
 // so pixmaps that are only drawn into don't keep a second copy of their pixels.
+// A mirror of 16 MB or more (the world's 2800x2800 minimap) is dropped 5 s after its last use
+// (releaseBigMirror): whoever read it, a texture upload or a PNG encode, is done by then and keeps
+// its own reference for as long as it needs it, and the next getBuffer() copies from the heap
+// again. That is only right for pixmaps that are drawn into with the drawing calls, not written
+// through getBuffer() without copyToHeap(); nothing that big is.
 // Mirror states: with `buffer` null there is no mirror and the heap is the truth; with bufferStale
 // set, the heap is newer; otherwise the two are in sync.
 public class Gdx2DPixmapNative implements Disposable {
@@ -38,6 +45,9 @@ public class Gdx2DPixmapNative implements Disposable {
     private static int liveCount, peakCount;
     private static double heapBytes, peakHeapBytes, mirrorBytes, peakMirrorBytes;
     private int countedHeap, countedMirror;
+    private static final int BIG_MIRROR = 16 * 1024 * 1024;
+    private static final int BIG_MIRROR_KEEP_MS = 5000;
+    private int releaseTimer;
 
     private void account(int heapDelta, int mirrorDelta) {
         heapBytes += heapDelta;
@@ -107,6 +117,28 @@ public class Gdx2DPixmapNative implements Disposable {
         TypedArrays.copy(heapData, buffer);
     }
 
+    @JSFunctor
+    private interface Callback extends JSObject {
+        void run();
+    }
+
+    @JSBody(params = {"callback", "ms"}, script = "return setTimeout(callback, ms);")
+    private static native int setTimer(Callback callback, int ms);
+
+    @JSBody(params = "id", script = "clearTimeout(id);")
+    private static native void clearTimer(int id);
+
+    private void releaseBigMirror() {
+        releaseTimer = 0;
+        if (buffer == null) {
+            return;
+        }
+        account(0, -countedMirror);
+        countedMirror = 0;
+        buffer = null;
+        bufferStale = false;
+    }
+
     public void copyToHeap() {
         // No mirror, or the heap is newer (copying the mirror back would undo drawing).
         if (buffer == null || bufferStale) {
@@ -139,6 +171,8 @@ public class Gdx2DPixmapNative implements Disposable {
 
     @Override
     public void dispose() {
+        clearTimer(releaseTimer);
+        releaseTimer = 0;
         untrackLarge(basePtr);
         if (countedHeap != 0 || countedMirror != 0) {
             liveCount--;
@@ -218,6 +252,10 @@ public class Gdx2DPixmapNative implements Disposable {
 
     public ByteBuffer getBuffer() {
         syncBuffer();
+        if (buffer.capacity() >= BIG_MIRROR) {
+            clearTimer(releaseTimer);
+            releaseTimer = setTimer(this::releaseBigMirror, BIG_MIRROR_KEEP_MS);
+        }
         return buffer;
     }
 
