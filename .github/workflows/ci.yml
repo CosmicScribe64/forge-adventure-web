@@ -1,5 +1,6 @@
 # Checks every push to main and every pull request: the Forge patch still applies, Forge and the
-# game still compile, and the SelfTest checks pass in headless Chromium. Releases are published
+# game still compile, the SelfTest checks pass in headless Chromium, and the built game boots to
+# its title screen without console errors (scripts/e2e-boot). Releases are published
 # by pages.yml.
 name: CI
 
@@ -41,3 +42,16 @@ jobs:
 
       - name: Compile the game
         run: scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
+
+      - name: Boot smoke test
+        run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
+
+      - name: Keep the boot smoke test's log and screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-boot
+          path: |
+            out/e2e-boot.log
+            out/e2e-boot.png
+          if-no-files-found: ignore

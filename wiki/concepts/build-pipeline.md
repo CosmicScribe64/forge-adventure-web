@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#layout, NOTES.md#reproduce, NOTES.md#round-8, web/build.gradle.kts, scripts]
-updated: 2026-10-01
+updated: 2026-10-05
 tags: [build, docker, teavm]
 ---
 
@@ -26,8 +26,8 @@ steps below.
 | Self-test | `scripts/selftest` (`SELFTEST=true`) | `web/build/dist/selftest` | about 35 s of checks plus about 5 min to build; see [[selftest]] |
 | Serve | `scripts/serve-web` | port 8090 | also the desktop preview config `forge-web` |
 | Static site | `scripts/build-site` | `web/build/site` (245 MB) | the game (app.js only as `app.js.gz`), `forge-data/`, and only the `res/` files the manifest fetches one by one; works from a subpath |
-| CI | `.github/workflows/ci.yml` | pass or fail on each push and pull request | wiki lint, patch, Forge build, game data, SelfTest and game compile |
-| Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above on GitHub's runners for each published release, or by hand. The repository's `github-pages` environment must allow the `main` branch and `v*` tags, or a release's deploy job is rejected; see [[open-issues]] |
+| CI | `.github/workflows/ci.yml` | pass or fail on each push and pull request | wiki lint, patch, Forge build, game data, SelfTest, game compile and the boot smoke test (`scripts/e2e-boot`, about 1 min, see [[webtest-harness]]); on failure the log and screenshot are uploaded |
+| Publish | `.github/workflows/pages.yml` | GitHub Pages | runs every step above, including the boot smoke test before the site is assembled, on GitHub's runners for each published release, or by hand. The repository's `github-pages` environment must allow the `main` branch and `v*` tags, or a release's deploy job is rejected; see [[open-issues]] |
 
 ## TeaVM settings (environment variables read by `build.gradle.kts`)
 - `TEAVM_MEMORY_MB` (default 5120). Forge is about 400k lines, and TeaVM needs about 5 GB to analyse it.
@@ -39,7 +39,8 @@ steps below.
 - `REACH=1` and `REACH_DETAIL=1` write `out/reach-game.txt` and `out/reach-game-reflect.txt`
   (see [[classic-code-pruning]], [[reflection-on-teavm]]). This is slow, taking 10-40 min.
 - `REFLECTION_DEBUG=true` turns on gdx-teavm's reflection debugging.
-- `outOfProcess = true`, `obfuscated = false`. There is also a `wasm {}` block for
+- `TEAVM_OBFUSCATED=true` (only with `SELFTEST=true`, set by `scripts/selftest`): minified SelfTest, see [[selftest]]. The game is not minified.
+- `outOfProcess = true`, `obfuscated = false` for the game. There is also a `wasm {}` block for
   [[stay-on-js-backend|the wasm spike]] (`TARGET=wasm scripts/selftest`).
 
 ## Building from a clean checkout (2026-10-01)

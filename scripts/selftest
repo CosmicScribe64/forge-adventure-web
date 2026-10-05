@@ -2,6 +2,7 @@
 # Fast check of the web runtime without Forge: builds forgeweb.selftest.SelfTest, serves it
 # with the game data on port 8092, runs it in headless Chromium and prints the results.
 # Exit code 0 only if every check passed. Output: web/build/dist/selftest, log out/selftest-js.log
+# TEAVM_OBFUSCATED=true compiles SelfTest with minified names (the release build is not minified yet).
 # TARGET=wasm builds the WebAssembly GC target instead (web/build/dist/selftest-wasm).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,7 +11,7 @@ TARGET="${TARGET:-js}"
 DIST=selftest; [ "$TARGET" = wasm ] && DIST=selftest-wasm
 
 if [ "${SKIP_BUILD:-}" != "1" ]; then
-  DOCK_CWD=web DOCK_ENV="SELFTEST=true -e REFLECTION_DEBUG=${REFLECTION_DEBUG:-false} -e TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED} -e REACH_REPORT=${REACH:+/work/out/reach-selftest-$TARGET.txt}" \
+  DOCK_CWD=web DOCK_ENV="SELFTEST=true -e REFLECTION_DEBUG=${REFLECTION_DEBUG:-false} -e TEAVM_MEMORY_MB=${TEAVM_MEMORY_MB:-5120} -e TEAVM_OPT=${TEAVM_OPT:-BALANCED} -e TEAVM_OBFUSCATED=${TEAVM_OBFUSCATED:-false} -e REACH_REPORT=${REACH:+/work/out/reach-selftest-$TARGET.txt}" \
     "$ROOT/scripts/dock" 'export GRADLE_OPTS="-Xmx1g -Dorg.gradle.daemon=false"; gradle --console=plain gdx_teavm_web_'$TARGET'_build 2>&1; echo "build peak memory: $(( $(cat /sys/fs/cgroup/memory.peak) / 1048576 )) MB"' \
     > "$ROOT/web/build/selftest-$TARGET-build.log" || true
   if ! grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/selftest-$TARGET-build.log"; then

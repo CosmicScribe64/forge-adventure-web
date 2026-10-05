@@ -280,3 +280,14 @@ Next steps:
   and getter callers were checked by search; a throwaway program and a browser run (new game, duel,
   deck editor) passed. Forge has no `forge-core` tests.
 - Pages touched: [[memory-budget]], [[metrics]], [[open-issues]], [[src-forge-web-patch]].
+
+## [2026-10-05] update | Boot smoke test in CI, webtest assertions, minified SelfTest
+- Read `web/tools/webtest.py`, `scripts/webtest`, both workflows and `web/build.gradle.kts`.
+  Added `expect`, `until-state`, `no-errors`, `--strict` and an error allowlist to webtest,
+  `scripts/e2e-boot` and `web/tools/loader-watch.js`, boot smoke steps in `ci.yml` and `pages.yml`,
+  and `TEAVM_OBFUSCATED` for SelfTest builds. The smoke test passes on the current build (about 30 s)
+  and fails on a startup exception and on a late console error.
+- Minified SelfTest: build fails in the `Long_fromNumber` patch, 35 of 39 checks pass on the unpatched
+  `app.js`; the other failures are three save and deck checks.
+- Pages touched: [[webtest-harness]], [[selftest]], [[build-pipeline]], [[open-issues]].
+

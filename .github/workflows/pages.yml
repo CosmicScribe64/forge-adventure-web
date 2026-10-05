@@ -37,6 +37,19 @@ jobs:
       - name: Compile to JavaScript
         run: scripts/build-web || { tail -40 web/build/teavm.log; exit 1; }
 
+      - name: Boot smoke test
+        run: scripts/e2e-boot || { tail -40 out/e2e-boot.log; exit 1; }
+
+      - name: Keep the boot smoke test's log and screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-boot
+          path: |
+            out/e2e-boot.log
+            out/e2e-boot.png
+          if-no-files-found: ignore
+
       - name: Assemble the site
         run: scripts/build-site
 

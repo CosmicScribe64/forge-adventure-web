@@ -68,7 +68,10 @@ gdxTeaVM {
         optimization = OptimizationLevel.valueOf(System.getenv("TEAVM_OPT") ?: "BALANCED")
         // Quicker, less precise whole-program analysis; try TEAVM_FAST_ANALYSIS=true to compare.
         fastGlobalAnalysis = System.getenv("TEAVM_FAST_ANALYSIS") == "true"
-        obfuscated = false
+        // Minified names. Off everywhere except for SelfTest with TEAVM_OBFUSCATED=true
+        // (scripts/selftest), to find code that depends on Java names before the release is
+        // minified.
+        obfuscated = System.getenv("SELFTEST") == "true" && System.getenv("TEAVM_OBFUSCATED") == "true"
         outOfProcess = true
         // Forge is about 400k lines, and the default heap is far too small. Override with TEAVM_MEMORY_MB.
         processMemory = (System.getenv("TEAVM_MEMORY_MB") ?: "5120").toInt()

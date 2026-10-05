@@ -17,6 +17,13 @@ Steps (separated by ';'):
   api <command>            the game's test harness (forgeweb.test.WebTest): state, moveto X Y,
                            goto NAME, click TEXT, duel, ok, cancel, play CARD, player NAME, ...
   until <text> <seconds>   wait until a console line contains <text> (fails after <seconds>)
+  expect <js expression>   fail the run (exit code 1) unless the expression is truthy in the page
+  until-state <cond> <seconds>
+                           once the loading screen is gone, poll the harness's `api state` once a
+                           second until the JavaScript
+                           condition is truthy (the parsed state is the variable `state`, for
+                           example: state.scene == 'StartScene'); exit code 1 after <seconds>
+  no-errors                fail the run (exit code 1) if the page has logged an unexpected error
   snapshot <path>          write a V8 heap snapshot (.heapsnapshot, open in DevTools or parse it)
   heap <path>              garbage-collect, then write the JS heap totals and (with --heap-sampling)
                            which functions allocated the memory still alive, to <path>
@@ -35,6 +42,12 @@ network emulation.
 <file> as a step (same syntax; "quit" ends). Each command's output goes to stdout, so run it
 in the background and append commands, e.g. echo 'hold ArrowRight 0.5; shot out/a.png' >> out/cmd.txt
 
+Assertions: `expect`, `until-state` and `no-errors` print "FAIL: ..." and end the run with exit
+code 1 (a plain `until` that times out still exits with 2). Every console "error" line and every
+uncaught page error is collected; those matching ALLOWED_ERRORS below (known harmless lines) are
+ignored. With --strict the run also fails at the end if any other error was logged, so a scenario
+needs no explicit `no-errors`. Without --strict errors are only listed, so existing uses are unchanged.
+
 The console log is written to --log (default out/console.log), line by line.
 
 Watchdog: every --heartbeat seconds (default 15) a "[hb]" line reports the time since the last
@@ -44,7 +57,9 @@ and ends the run (exit code 4). After --max-time seconds (default 900) the run i
 code 3).
 """
 import argparse
+import json
 import os
+import re
 import shlex
 import sys
 import threading
@@ -53,6 +68,33 @@ import time
 from playwright.sync_api import sync_playwright
 
 ROOT = "/work"
+
+# Console errors (and page errors) that a healthy boot logs. Anything else fails a --strict run.
+# Each entry is (regular expression searched in the message, why it is harmless). Keep this short:
+# every line here is a line a real bug could hide behind.
+ALLOWED_ERRORS = [
+    (r"^Failed to load: fallback_skin/(title_bg_lq|transition)\.png!\. Creating dummy texture\.",
+     "Forge's Assets loads the fallback skin before the real skin; its two images are read through "
+     "a path that is not there yet. The real skin loads right after (ui/title_bg.png ... Found!)."),
+    (r"^The card .* was not assigned to any set\. Adding it to UNKNOWN set",
+     "Forge logs this with System.err for card scripts whose edition file doesn't list them (the "
+     "A- Alchemy rebalances and a few others); it is the same on desktop."),
+    (r"^Upcoming set .* dated in the future\. All `upcoming` cards",
+     "Forge's edition data contains sets released after the date the build was made (Star Trek, "
+     "2026-11-13); the line goes away once that date passes."),
+    (r"^\[suppressed\] java\.io\.IOException \(while throwing java\.io\.IOException\)",
+     "forgeweb.compat.JdkCompat reports an exception added with addSuppressed while another was "
+     "being thrown, from an optional file that Forge probes and handles (the same boot also logs "
+     "'Error reading matrix data: FileNotFoundException' at info level)."),
+]
+
+
+def allowed_index(text):
+    """Index of the ALLOWED_ERRORS entry that matches the message, or None."""
+    for i, (rx, _) in enumerate(ALLOWED_ERRORS):
+        if re.search(rx, text):
+            return i
+    return None
 
 
 def write_profile(prof, path):
@@ -181,6 +223,8 @@ def main():
     ap.add_argument("--latency", type=float, default=0,
                     help="add this many ms to every request (Chrome network emulation, sync XHR too): "
                          "what a hosted page feels like, where the local server answers at once")
+    ap.add_argument("--strict", action="store_true",
+                    help="exit with code 1 at the end if the page logged an error not in ALLOWED_ERRORS")
     ap.add_argument("--mbps", type=float, default=0, help="limit the download speed (megabits/s)")
     args = ap.parse_args()
 
@@ -192,6 +236,16 @@ def main():
     last_console = [start]
     log_lock = threading.Lock()
     crashed = []
+    errors = []  # unexpected console errors and page errors, as log lines
+    allowed_seen = {}
+
+    def fail(message):
+        emit(f"[{time.time() - start:7.1f}s] [FAIL] {message}", echo=True)
+        print(f"FAIL: {message}", flush=True)
+        for e in errors[:20]:
+            print(f"  error: {e[:300]}", flush=True)
+        log.close()
+        os._exit(1)
 
     def emit(text, echo=False):
         with log_lock:
@@ -205,6 +259,12 @@ def main():
         lines.append(text)
         last_console[0] = time.time()
         emit(text)
+        if msg.type in ("error", "pageerror"):
+            index = allowed_index(msg.text)
+            if index is None:
+                errors.append(text)
+            else:
+                allowed_seen[index] = allowed_seen.get(index, 0) + 1
 
     def watchdog():
         prev = {}
@@ -455,6 +515,39 @@ def main():
                     print(f"until '{needle}': {'found' if found else 'NOT FOUND'} after {time.time() - (end - limit):.0f}s")
                     if not found:
                         sys.exit(2)
+                elif cmd == "expect":
+                    expr = step[len("expect"):].strip()
+                    try:
+                        value = page.evaluate(expr)
+                    except Exception as e:
+                        fail(f"expect {expr}: evaluation failed: {str(e)[:200]}")
+                    if not value:
+                        fail(f"expect {expr}: got {json.dumps(value)}")
+                    print(f"expect ok: {expr}", flush=True)
+                elif cmd == "until-state":
+                    cond, limit = step[len("until-state"):].strip().rsplit(None, 1)
+                    end = time.time() + float(limit)
+                    state, ok = None, False
+                    while time.time() < end and not ok:
+                        pump(1)
+                        try:
+                            # The harness answers between frames; give up on one poll after 5 s.
+                            # Not before the loading screen is gone (the game has drawn a frame): a command
+                            # queued on the UI thread while Forge is still starting up can kill it.
+                            raw = page.evaluate("""() => window.forgeTest && !document.getElementById('loading') ? Promise.race([window.forgeTest.cmd('state'),
+                                new Promise(r => setTimeout(() => r(null), 5000))]) : null""")
+                            state = json.loads(raw) if raw else None
+                            ok = bool(state) and bool(page.evaluate(
+                                "([c, state]) => !!(new Function('state', 'return (' + c + ')'))(state)", [cond, state]))
+                        except Exception:
+                            ok = False
+                    if not ok:
+                        fail(f"until-state {cond}: not reached in {limit}s; last state: {json.dumps(state)[:300]}")
+                    print(f"until-state '{cond}': reached after {time.time() - (end - float(limit)):.0f}s", flush=True)
+                elif cmd == "no-errors":
+                    if errors:
+                        fail(f"{len(errors)} unexpected console/page error(s)")
+                    print("no-errors ok", flush=True)
                 else:
                     sys.exit(f"unknown step: {step}")
 
@@ -485,6 +578,15 @@ def main():
         browser.close()
     log.close()
     print(f"console: {len(lines)} lines -> {args.log}")
+    if errors:
+        print(f"unexpected errors: {len(errors)}")
+        for e in errors[:20]:
+            print(f"  {e[:300]}")
+    if allowed_seen:
+        print("allowed errors seen: " + ", ".join(f"{n}x {ALLOWED_ERRORS[i][0][:40]}" for i, n in sorted(allowed_seen.items())))
+    if args.strict and errors:
+        print("FAIL: unexpected console/page errors (--strict)")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

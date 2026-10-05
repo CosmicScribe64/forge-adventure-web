@@ -1,7 +1,7 @@
 ---
 type: status
 sources: [PLAN.md#next, NOTES.md#review, NOTES.md#round-6, NOTES.md#round-11]
-updated: 2026-10-04
+updated: 2026-10-05
 tags: [issues, todo]
 ---
 
@@ -67,7 +67,18 @@ See [[webtest-harness]].
 - [ ] `scripts/build-webdata`'s docstring says inflating the card zip took "a quarter of startup",
   while NOTES.md (Round 11) says about 10%. Check which is right.
 - [ ] `fallback_skin/title_bg_lq.png` fails to load at startup, and a dummy texture is used
-  instead. This predates the port's changes.
+  instead. This predates the port's changes. The boot smoke test allows this line.
+
+## Testing (2026-10-05)
+- [ ] SelfTest passes only 35 of 39 checks when minified (`TEAVM_OBFUSCATED=true scripts/selftest`):
+  the `Long_fromNumber` patch in `web/build.gradle.kts` matches by name and the build fails, and
+  serialisation by class name breaks three save and deck checks. See [[selftest]]. Fix before
+  minifying the release.
+- [ ] The harness must not be called while the game is starting up; a queued `api state` killed
+  the UI thread in a trial (`until-state` waits for the loading screen to go). Find out why.
+- [ ] The boot smoke test's allowlist hides four known error lines; remove an entry when its cause
+  is fixed ([[webtest-harness]]).
+- [ ] Other test-plan steps (JVM unit tests, game scenarios, memory thresholds) are not started.
 
 ## Plan items not started
 - [ ] Phase 3: compare the reflection audit with the registries, unify the declarations, and warn
