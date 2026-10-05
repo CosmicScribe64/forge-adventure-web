@@ -347,6 +347,226 @@ index 4f64c66e5d..8d0b3ccdb1 100644
          currentScene.enter();
          if (currentScene instanceof DuelScene)
              Forge.clearTransitionScreen(true);
+diff --git a/forge-gui-mobile/src/forge/Graphics.java b/forge-gui-mobile/src/forge/Graphics.java
+index 5976adf139..714ae6c406 100644
+--- a/forge-gui-mobile/src/forge/Graphics.java
++++ b/forge-gui-mobile/src/forge/Graphics.java
+@@ -33,6 +33,19 @@ import java.util.Deque;
+ public class Graphics implements Disposable {
+     private static final int GL_BLEND = GL20.GL_BLEND;
+     private static final int GL_LINE_SMOOTH = 2848; //create constant here since not in GL20
++    private static final boolean WEB = Boolean.getBoolean("forge.web");
++
++    /** WebGL has no GL_LINE_SMOOTH: enabling it is an INVALID_ENUM error (WebKit logs each one to the console). */
++    private static void setLineSmoothing(boolean on) {
++        if (WEB) {
++            return;
++        }
++        if (on) {
++            Gdx.gl.glEnable(GL_LINE_SMOOTH);
++        } else {
++            Gdx.gl.glDisable(GL_LINE_SMOOTH);
++        }
++    }
+ 
+     private final SpriteBatch batch;
+     private final ShapeRenderer shapeRenderer = new ShapeRenderer();
+@@ -319,7 +332,7 @@ public class Graphics implements Disposable {
+             Gdx.gl.glEnable(GL_BLEND);
+         }
+         if (needSmoothing) {
+-            Gdx.gl.glEnable(GL_LINE_SMOOTH);
++            setLineSmoothing(true);
+         }
+ 
+         startShape(ShapeType.Line);
+@@ -328,7 +341,7 @@ public class Graphics implements Disposable {
+         endShape();
+ 
+         if (needSmoothing) {
+-            Gdx.gl.glDisable(GL_LINE_SMOOTH);
++            setLineSmoothing(false);
+         }
+         if (color.a < 1 || needSmoothing) {
+             Gdx.gl.glDisable(GL_BLEND);
+@@ -357,7 +370,7 @@ public class Graphics implements Disposable {
+             Gdx.gl.glEnable(GL_BLEND);
+         }
+         if (needSmoothing) {
+-            Gdx.gl.glEnable(GL_LINE_SMOOTH);
++            setLineSmoothing(true);
+         }
+         startShape(ShapeType.Filled);
+         shapeRenderer.setColor(color);
+@@ -383,7 +396,7 @@ public class Graphics implements Disposable {
+         endShape();
+ 
+         if (needSmoothing) {
+-            Gdx.gl.glDisable(GL_LINE_SMOOTH);
++            setLineSmoothing(false);
+         }
+         if (color.a < 1 || needSmoothing) {
+             Gdx.gl.glDisable(GL_BLEND);
+@@ -406,7 +419,7 @@ public class Graphics implements Disposable {
+             color = FSkinColor.alphaColor(color, color.a * alphaComposite);
+         }
+         Gdx.gl.glEnable(GL_BLEND);
+-        Gdx.gl.glEnable(GL_LINE_SMOOTH);
++        setLineSmoothing(true);
+ 
+         vectorAngleHelper1.set(x2 - x1, y2 - y1);
+         float angle = vectorAngleHelper1.angleRad();
+@@ -455,7 +468,7 @@ public class Graphics implements Disposable {
+         }
+ 
+         Gdx.gl.glDisable(GL_BLEND);
+-        Gdx.gl.glDisable(GL_LINE_SMOOTH);
++        setLineSmoothing(false);
+ 
+         batch.begin();
+     }
+@@ -502,7 +515,7 @@ public class Graphics implements Disposable {
+             shapeRenderer.rectLine(adjustX(x1), adjustY(y1, 0), adjustX(x2), adjustY(y2, 0), thickness);
+             endShape();
+ 
+-            if (needSmoothing) Gdx.gl.glEnable(GL_LINE_SMOOTH);
++            if (needSmoothing) setLineSmoothing(true);
+             if (lt > 1) Gdx.gl.glLineWidth(lt);
+ 
+             startShape(ShapeType.Line);
+@@ -510,7 +523,7 @@ public class Graphics implements Disposable {
+             shapeRenderer.line(adjustX(x1), adjustY(y1, 0), adjustX(x2), adjustY(y2, 0));
+             endShape();
+ 
+-            if (needSmoothing) Gdx.gl.glDisable(GL_LINE_SMOOTH);
++            if (needSmoothing) setLineSmoothing(false);
+             if (lt > 1) Gdx.gl.glLineWidth(1);
+ 
+         } else {
+@@ -542,7 +555,7 @@ public class Graphics implements Disposable {
+             }
+             endShape();
+ 
+-            if (needSmoothing) Gdx.gl.glEnable(GL_LINE_SMOOTH);
++            if (needSmoothing) setLineSmoothing(true);
+             if (lt > 1) Gdx.gl.glLineWidth(lt);
+ 
+             startShape(ShapeType.Line);
+@@ -559,7 +572,7 @@ public class Graphics implements Disposable {
+             }
+             endShape();
+ 
+-            if (needSmoothing) Gdx.gl.glDisable(GL_LINE_SMOOTH);
++            if (needSmoothing) setLineSmoothing(false);
+             if (lt > 1) Gdx.gl.glLineWidth(1);
+         }
+ 
+@@ -604,7 +617,7 @@ public class Graphics implements Disposable {
+                 shapeRenderer.rectLine(tipX, tipY, baseRightX, baseRightY, thickness);
+                 endShape();
+ 
+-                if (needSmoothing) Gdx.gl.glEnable(GL_LINE_SMOOTH);
++                if (needSmoothing) setLineSmoothing(true);
+                 if (lt > 1) Gdx.gl.glLineWidth(lt);
+ 
+                 startShape(ShapeType.Line);
+@@ -613,7 +626,7 @@ public class Graphics implements Disposable {
+                 shapeRenderer.line(tipX, tipY, baseRightX, baseRightY);
+                 endShape();
+ 
+-                if (needSmoothing) Gdx.gl.glDisable(GL_LINE_SMOOTH);
++                if (needSmoothing) setLineSmoothing(false);
+                 if (lt > 1) Gdx.gl.glLineWidth(1);
+             }
+         }
+@@ -657,7 +670,7 @@ public class Graphics implements Disposable {
+             endShape();
+ 
+             if (needSmoothing) {
+-                Gdx.gl.glEnable(GL_LINE_SMOOTH);
++                setLineSmoothing(true);
+             }
+             if (lt > 1) {
+                 Gdx.gl.glLineWidth(lt);
+@@ -669,7 +682,7 @@ public class Graphics implements Disposable {
+             endShape();
+ 
+             if (needSmoothing) {
+-                Gdx.gl.glDisable(GL_LINE_SMOOTH);
++                setLineSmoothing(false);
+             }
+             if (lt > 1) {
+                 Gdx.gl.glLineWidth(1);
+@@ -700,7 +713,7 @@ public class Graphics implements Disposable {
+             endShape();
+ 
+             if (needSmoothing) {
+-                Gdx.gl.glEnable(GL_LINE_SMOOTH);
++                setLineSmoothing(true);
+             }
+             if (lt > 1) {
+                 Gdx.gl.glLineWidth(lt);
+@@ -717,7 +730,7 @@ public class Graphics implements Disposable {
+             }
+             endShape();
+             if (needSmoothing) {
+-                Gdx.gl.glDisable(GL_LINE_SMOOTH);
++                setLineSmoothing(false);
+             }
+             if (lt > 1) {
+                 Gdx.gl.glLineWidth(1);
+@@ -759,7 +772,7 @@ public class Graphics implements Disposable {
+             Gdx.gl.glEnable(GL_BLEND);
+         }
+         if (cornerRadius > 0) {
+-            Gdx.gl.glEnable(GL_LINE_SMOOTH);
++            setLineSmoothing(true);
+         }
+ 
+         //adjust width/height so rectangle covers equivalent filled area
+@@ -779,7 +792,7 @@ public class Graphics implements Disposable {
+         endShape();
+ 
+         if (cornerRadius > 0) {
+-            Gdx.gl.glDisable(GL_LINE_SMOOTH);
++            setLineSmoothing(false);
+         }
+         if (color.a < 1 || cornerRadius > 0) {
+             Gdx.gl.glDisable(GL_BLEND);
+@@ -832,14 +845,14 @@ public class Graphics implements Disposable {
+             color = FSkinColor.alphaColor(color, color.a * alphaComposite);
+         }
+         Gdx.gl.glEnable(GL_BLEND);
+-        Gdx.gl.glEnable(GL_LINE_SMOOTH); //must be smooth to ensure edges aren't missed
++        setLineSmoothing(true); //must be smooth to ensure edges aren't missed
+ 
+         startShape(ShapeType.Line);
+         shapeRenderer.setColor(color);
+         shapeRenderer.rect(adjustX(x), adjustY(y, h), w, h);
+         endShape();
+ 
+-        Gdx.gl.glDisable(GL_LINE_SMOOTH);
++        setLineSmoothing(false);
+         Gdx.gl.glDisable(GL_BLEND);
+         if (thickness > 1) {
+             Gdx.gl.glLineWidth(1);
+@@ -895,14 +908,14 @@ public class Graphics implements Disposable {
+             color = FSkinColor.alphaColor(color, color.a * alphaComposite);
+         }
+         Gdx.gl.glEnable(GL_BLEND);
+-        Gdx.gl.glEnable(GL_LINE_SMOOTH);
++        setLineSmoothing(true);
+ 
+         startShape(ShapeType.Line);
+         shapeRenderer.setColor(color);
+         shapeRenderer.circle(adjustX(x), adjustY(y, 0), radius);
+         endShape();
+ 
+-        Gdx.gl.glDisable(GL_LINE_SMOOTH);
++        setLineSmoothing(false);
+         Gdx.gl.glDisable(GL_BLEND);
+         if (thickness > 1) {
+             Gdx.gl.glLineWidth(1);
 diff --git a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java b/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java
 index 7b69854c6a..861fcc8c02 100644
 --- a/forge-gui-mobile/src/forge/adventure/player/AdventurePlayer.java

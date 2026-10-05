@@ -1,7 +1,7 @@
 // Shadows gdx-teavm backend-web 1.6.1's HowlMusic (project classes come first on the TeaVM
 // classpath). Changes, marked "forgeweb": music streams through an HTML5 Audio element
 // (Howler's html5: true) instead of being decoded whole by Web Audio, which cost about 70 MB per
-// 185 s track; play() retries after the first user gesture; dispose() revokes the Blob URL.
+// 185 s track; play() retries after the first user gesture; dispose() revokes the Blob URL (after a delay, see revokeUrl).
 // See wiki/concepts/memory-budget.md.
 package com.github.xpenatan.gdx.teavm.backends.web.webaudio.howler;
 
@@ -37,7 +37,11 @@ public class HowlMusic implements Music {
             "return h;")
     private static native Howl createStreaming(ArrayBufferView arrayBufferView);
 
-    @JSBody(params = { "h" }, script = "if (h._forgeBlobUrl) { URL.revokeObjectURL(h._forgeBlobUrl); h._forgeBlobUrl = null; }")
+    // The audio element starts fetching its Blob URL asynchronously, and a track is often disposed within half a
+    // second of being created (the title screen swaps its music right away). Revoking the URL before WebKit has
+    // started that fetch makes it log "Failed to load resource" (about one run in three on the title screen), so
+    // the revoke waits a few seconds; a Blob of one track is a few MB.
+    @JSBody(params = { "h" }, script = "if (h._forgeBlobUrl) { var u = h._forgeBlobUrl; h._forgeBlobUrl = null; setTimeout(function () { URL.revokeObjectURL(u); }, 5000); }")
     private static native void revokeUrl(Howl h);
 
     @JSBody(params = { "h", "want" }, script = "h._forgeWant = want;")

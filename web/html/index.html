@@ -283,7 +283,11 @@
         setTimeout(() => loading.remove(), 450);
         if (document.documentElement.requestFullscreen) {
             fullscreen.style.display = "block";
-            window.forgeShowFullscreen(4000);
+            // On a touch screen the top centre is part of the game's own UI: on a phone the title screen's
+            // New Game button reaches up under it, and while it is shown it takes the taps meant for that
+            // button. So there it is not shown unasked (a tap near the top still brings it up).
+            const touch = matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+            if (!touch) window.forgeShowFullscreen(4000);
         }
     };
 
