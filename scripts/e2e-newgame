@@ -2,8 +2,9 @@
 # New-game scenario: serves the built game (scripts/serve-web), loads it with the world seed 1 in
 # headless Chromium, starts a new game, waits for the overworld, and checks that
 #   - the console has no unexpected errors (known harmless ones: web/tools/webtest.py),
-#   - renderer RSS, JS heap and live WebGL texture memory stay under the limits below, measured at
-#     the title screen and at the overworld,
+#   - renderer RSS, JS heap, live WebGL texture memory and the wasm pixmap heap stay under the limits
+#     below, measured at the title screen and at the overworld (and RSS does not rise by more than a
+#     set amount between the two),
 #   - no file of 1 MB or more was requested twice (same URL and Range).
 # Needs scripts/build-web and scripts/build-webdata first. Exit code 0 only if everything held.
 # Log: out/e2e-newgame.log, screenshots: out/e2e-newgame-menu.png and out/e2e-newgame-world.png.
@@ -16,19 +17,39 @@ PORT="${PORT:-8090}"
 cd "$ROOT"
 mkdir -p out
 
-# Limits in MB. Measured on 2026-10-05 with 1.25 as the factor: desktop 1280x720, headless
-# Chromium with software GL (SwiftShader) in the Playwright container, seed 1, default 700x700
-# world, after commits "Terminate the WFC worker pool", "Drop the JS copy of big pixmaps" and
-# "Size WorldBackground's chunk arrays by chunk count" (the numbers are in wiki/concepts/metrics.md).
+# Limits in MB, all in this one place. Set on 2026-10-05 from the minified build (the release build,
+# TEAVM_OBFUSCATED=true) on desktop 1280x720, headless Chromium with software GL (SwiftShader) in the
+# Playwright container, seed 1, default 700x700 world, 4 cores (so 3 WFC workers), after the commits
+# "Terminate the WFC worker pool", "Drop the JS copy of big pixmaps", "Size WorldBackground's chunk
+# arrays by chunk count" and "Dispose the previous world's minimap image and tile map". Numbers are in
+# wiki/concepts/memory-budget.md. Runs vary by a few MB (RSS by up to about 10 MB).
+#
+# What each limit has to catch, and how much room it leaves:
+#   JS heap, textures, wasm pixmap heap: the same on any machine (the JS and the GL calls are the same),
+#     so they are tight (5 to 8 percent above the measured value). A new game that keeps its old world
+#     (the 31 MB pixmap and 11.7 MB of tiles) fails the pixmap and texture limits only in e2e-cycle,
+#     which compares games; here one game fits, so these catch a bigger world image, a tileset kept
+#     twice, or a card database that grew.
+#   Renderer RSS depends on the machine (GitHub's runners may differ from this sandbox), so the absolute
+#     limits are loose (about 110 MB above the measured value), and the real check is the difference
+#     between the overworld and the menu, which does not depend on the machine's base footprint:
+#     measured 110 MB, limit 140 MB. The WFC workers that were never terminated (3 x 44 MB, 133 MB in
+#     all, wiki/concepts/memory-budget.md) would have made it 243 MB and the overworld RSS 813 MB: both
+#     fail. The worker count is min(8, cores - 1); with one worker (2 cores) the difference would be
+#     154 MB, which still fails. The per-game leaks (a kept 31 MB minimap image, 11.7 MB of tiles) show
+#     only when games are compared, which scripts/e2e-cycle does.
 # Raise a limit only after finding out why the number grew, and record the new measurement there.
-# measured at the title screen:  rss 610 MB, heap 256.7 MB, textures 75.4 MB
-# measured at the overworld:     rss 716 MB, heap 278.7 MB, textures 124 MB
-MENU_RSS_MAX=763
-MENU_HEAP_MAX=321
-MENU_TEX_MAX=95
-WORLD_RSS_MAX=895
-WORLD_HEAP_MAX=349
-WORLD_TEX_MAX=155
+# measured at the title screen:  rss 563-580 MB, heap 246.5 MB, textures 75.4 MB, pixmap heap 7 MB
+# measured at the overworld:     rss 673-690 MB, heap 267.4 MB, textures 124.0 MB, pixmap heap 40 MB
+MENU_RSS_MAX=680
+MENU_HEAP_MAX=265
+MENU_TEX_MAX=80
+MENU_PIX_MAX=10
+WORLD_RSS_MAX=790
+WORLD_HEAP_MAX=288
+WORLD_TEX_MAX=130
+WORLD_PIX_MAX=45
+WORLD_RSS_RISE_MAX=140
 
 if [ "${SERVER:-1}" != 0 ]; then
   docker rm -f forge-web-serve >/dev/null 2>&1 || true
@@ -47,5 +68,5 @@ fi
 "$ROOT/scripts/webtest" --url "http://host.docker.internal:$PORT/index.html?test=1&seed=1" \
   --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-600}" ${EXTRA:-} \
   --init-script web/tools/glhook.js --log out/e2e-newgame.log \
-  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; shot out/e2e-newgame-menu.png; measure menu; assert-max menu.rss $MENU_RSS_MAX; assert-max menu.heap $MENU_HEAP_MAX; assert-max menu.tex $MENU_TEX_MAX; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 10; shot out/e2e-newgame-world.png; measure world; assert-max world.rss $WORLD_RSS_MAX; assert-max world.heap $WORLD_HEAP_MAX; assert-max world.tex $WORLD_TEX_MAX; no-repeat-downloads 1; no-errors" \
+  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 4; shot out/e2e-newgame-menu.png; measure menu; assert-max menu.rss $MENU_RSS_MAX; assert-max menu.heap $MENU_HEAP_MAX; assert-max menu.tex $MENU_TEX_MAX; assert-max menu.pix $MENU_PIX_MAX; api click New Game; until 'ui/new_game' 60; wait 3; api click start; until 'Generating world took' 400; until-state ['TileMapScene','GameScene'].includes(state.scene) 120; wait 10; shot out/e2e-newgame-world.png; measure world; assert-max world.rss $WORLD_RSS_MAX; assert-max world.heap $WORLD_HEAP_MAX; assert-max world.tex $WORLD_TEX_MAX; assert-max world.pix $WORLD_PIX_MAX; assert-growth menu.rss world.rss $WORLD_RSS_RISE_MAX; no-repeat-downloads 1; no-errors" \
   | grep -vE '^\[ *[0-9.]+s\] \[hb\]'

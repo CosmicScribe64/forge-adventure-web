@@ -13,12 +13,16 @@ PORT="${PORT:-8090}"
 cd "$ROOT"
 mkdir -p out
 
-# Measured 2026-10-05: pixmap heap +1 MB per game after game 1 (was +31), textures +0.4 MB (was +11.7).
+# Measured 2026-10-05 on the minified build (desktop, headless, software GL, seed 1): pixmap heap +2 MB
+# from game 1 to game 3 (it was +62 before the fix), textures +0.9 MB (was +23), JS heap +2.6 MB, and
+# RSS +15 to +30 MB from game 2 to game 3 over several runs. Without the biomeImage dispose the pixmap
+# check fails (see wiki/concepts/webtest-harness.md for the run that showed it).
 # RSS is compared between games 2 and 3 because game 2 alone raises the wasm memory high-water mark
-# by the size of one minimap image (the old one is freed only after the new one exists).
+# by the size of one minimap image (the old one is freed only after the new one exists). RSS is the
+# noisiest number here and the pixmap and texture checks catch the leaks, so its margin is the loosest.
 PIX_GROWTH=5
 TEX_GROWTH=5
-RSS_GROWTH=30
+RSS_GROWTH=45
 HEAP_GROWTH=15
 
 if [ "${SERVER:-1}" != 0 ]; then
