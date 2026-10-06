@@ -1,0 +1,134 @@
+# The game on device simulators: Mobile Safari in the iOS Simulator (macOS runner) and Chrome in the Android
+# emulator (Linux runner with KVM). Each runs the page-side self-test web/tools/device-probe.js through
+# web/tools/device-run.py: boot to the title screen without unexpected console errors, display-check (the canvas
+# is the visible viewport between the browser's bars, the backing store at the capped pixel ratio), audio off,
+# a new game to the overworld by touch taps, a town, the VS screen and a duel, with screenshots, and the memory
+# of the browser's renderer (iOS: the Simulator's WebContent process, Android: PSS from dumpsys meminfo)
+# at the title, the overworld and the duel. See wiki/concepts/e2e-tests.md.
+#
+# Run it by hand: gh workflow run devices.yml --ref main [-f site_url=https://...]. pages.yml calls it
+# twice: before the deploy against the built site (site_artifact: github-pages), and after it against the live site.
+name: Devices
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: Site to test (its index.html is fetched from here)
+        default: https://cosmicscribe64.github.io/forge-adventure-web/
+  workflow_call:
+    inputs:
+      site_url:
+        description: Site to test; ignored when site_artifact is set
+        type: string
+        default: https://cosmicscribe64.github.io/forge-adventure-web/
+      site_artifact:
+        description: Name of this run's Pages artifact (github-pages) holding the built site, to test it instead of a URL
+        type: string
+        default: ""
+      label:
+        description: Added to the artifact names, so two calls in one run don't collide
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch the built site
+        if: inputs.site_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.site_artifact }}
+          path: site-download
+
+      - name: Unpack the built site
+        if: inputs.site_artifact != ''
+        run: mkdir site && tar -xf site-download/artifact.tar -C site
+
+      - name: Boot an iPhone simulator
+        run: |
+          xcrun simctl list runtimes available | grep -i ios | tail -3
+          # the newest iOS runtime's plain "iPhone NN" (not Pro, Plus, Air, SE or mini)
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          d = json.load(sys.stdin)["devices"]
+          def ver(k): return [int(x) for x in re.findall(r"\d+", k.split("iOS-")[-1])] if "iOS-" in k else [0]
+          for k in sorted(d, key=ver, reverse=True):
+              phones = [x for x in d[k] if re.fullmatch(r"iPhone \d+", x["name"])]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run the game in Mobile Safari
+        run: |
+          mkdir -p out/devices/ios
+          if [ -n "${{ inputs.site_artifact }}" ]; then SRC=(--site site); else SRC=(--upstream "${{ inputs.site_url }}"); fi
+          python3 web/tools/device-run.py --platform ios --udid "$UDID" --out out/devices/ios "${SRC[@]}" --timeout 1800 --query "cb=$GITHUB_RUN_ID"
+
+      - name: Keep the screenshots, logs and summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devices-ios${{ inputs.label }}
+          path: out/devices/ios
+          if-no-files-found: ignore
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch the built site
+        if: inputs.site_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.site_artifact }}
+          path: site-download
+
+      - name: Unpack the built site
+        if: inputs.site_artifact != ''
+        run: mkdir site && tar -xf site-download/artifact.tar -C site
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the game in Chrome on an Android phone
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SITE_ARTIFACT: ${{ inputs.site_artifact }}
+          SITE_URL: ${{ inputs.site_url }}
+          RUN_ID: ${{ github.run_id }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          heap-size: 576M
+          disk-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: scripts/devices-android
+
+      - name: Keep the screenshots, logs and summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devices-android${{ inputs.label }}
+          path: out/devices/android
+          if-no-files-found: ignore

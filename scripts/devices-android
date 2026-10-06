@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Run on a booted Android emulator (the script of reactivecircus/android-emulator-runner in
+# .github/workflows/devices.yml): prepares Chrome and runs web/tools/device-run.py against it. The site is
+# SITE_ARTIFACT's unpacked folder (./site) or SITE_URL.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+mkdir -p out/devices/android
+adb root >/dev/null 2>&1 || true
+adb wait-for-device
+# Chrome: no first-run screens (sign-in, data saver), and no notification prompt; the screen stays on.
+adb shell "echo '_ --disable-fre --no-first-run --no-default-browser-check' > /data/local/tmp/chrome-command-line"
+adb shell chmod 755 /data/local/tmp/chrome-command-line
+adb shell am set-debug-app --persistent com.android.chrome
+adb shell pm grant com.android.chrome android.permission.POST_NOTIFICATIONS 2>/dev/null || true
+adb shell svc power stayon true
+adb shell input keyevent 82
+adb reverse tcp:8123 tcp:8123
+{ adb shell getprop ro.build.version.sdk; adb shell wm size; adb shell wm density; adb shell dumpsys package com.android.chrome | grep -m1 versionName; } | tee out/devices/android/device.txt
+if [ -n "${SITE_ARTIFACT:-}" ]; then SRC=(--site site); else SRC=(--upstream "$SITE_URL"); fi
+python3 web/tools/device-run.py --platform android --out out/devices/android "${SRC[@]}" --timeout 1800 --query "cb=${RUN_ID:-0}"
