@@ -33,8 +33,10 @@ if grep -q "BUILD SUCCESSFUL" "$ROOT/web/build/teavm.log"; then
   APP_V=$(shasum "$WEBAPP/app.js" | cut -c1-12)
   WORKER_V=$(shasum "$WEBAPP/wfc-worker.js" 2>/dev/null | cut -c1-12)
   MAP_V=none; [ -n "$MAP" ] && MAP_V=$(shasum "$MAP" | cut -c1-12)
+  # The version on the title screen: the release tag, or the commit if there is no tag (CI's shallow clone).
+  GAME_V=$(git -C "$ROOT" describe --tags --always 2>/dev/null | tr -cd 'A-Za-z0-9.+-' || true)
   # Not sed -i: its argument syntax differs between macOS and GNU sed.
-  sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" -e "s/SOURCE_MAP_VERSION/$MAP_V/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
+  sed -e "s/APP_VERSION/$APP_V/" -e "s/WORKER_VERSION/$WORKER_V/" -e "s/SOURCE_MAP_VERSION/$MAP_V/" -e "s/GAME_VERSION/${GAME_V:-dev}/" "$WEBAPP/index.html" > "$WEBAPP/index.html.tmp"
   mv "$WEBAPP/index.html.tmp" "$WEBAPP/index.html"
   # The page downloads app.js gzipped and un-gzips it itself (like the game data), so the progress
   # bar counts real bytes and a host that doesn't compress still sends 7 MB, not 76 MB.

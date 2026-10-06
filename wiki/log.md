@@ -427,3 +427,9 @@ Next steps:
 - Audio: on a touch device with no saved volumes, `WebLauncher` writes `UI_VOL_MUSIC=0` and `UI_VOL_SOUNDS=0` before Forge reads its preferences; Settings raises them as usual. Checked in phone and iPhone mode (nothing plays after taps, a slider tap starts music, it plays again after a reload) and on desktop (unchanged).
 - Updated [[memory-budget]], [[screen-layout]], [[open-issues]], [[gdx-teavm]], [[bug-catalog]], [[code-map]], [[web-layer-mechanisms]], [[index]].
   Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.
+
+## [2026-10-06] fix | Real version on the title screen
+- The title screen showed "v.web-spike", a leftover from the prototype, in `WebDeviceAdapter`.
+  `scripts/build-web` now writes `git describe --tags --always` into `index.html` as
+  `window.forgeVersion`, and `getVersionString()` returns it (a release shows its tag, CI's shallow
+  clone shows the commit, and a page not built by `build-web` shows "dev").

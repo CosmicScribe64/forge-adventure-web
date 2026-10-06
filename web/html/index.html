@@ -55,6 +55,8 @@
     <div id="status">Loading…</div>
 </div>
 <script>
+// The game's version, from `git describe` (scripts/build-web), shown on the title screen.
+window.forgeVersion = "GAME_VERSION";
 (() => {
     const fill = document.getElementById("fill");
     const status = document.getElementById("status");

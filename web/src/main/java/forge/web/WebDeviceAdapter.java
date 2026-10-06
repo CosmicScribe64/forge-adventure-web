@@ -17,7 +17,12 @@ public class WebDeviceAdapter implements IDeviceAdapter {
     @Override public boolean isConnectedToWifi() { return true; }
     @Override public boolean isTablet() { return false; }
     @Override public String getDownloadsDir() { return "/downloads/"; }
-    @Override public String getVersionString() { return "web-spike"; }
+    @Override public String getVersionString() { return pageVersion(); }
+
+    /** Set by web/html/index.html from `git describe` at build time; "dev" if the page wasn't built by build-web. */
+    @org.teavm.jso.JSBody(script = "var version = window.forgeVersion;"
+            + " return version && version.indexOf('GAME_') !== 0 ? version : 'dev';")
+    private static native String pageVersion();
     @Override public String getLatestChanges(String commitsAtom, Date buildDateOriginal, Date maxDate) { return ""; }
     @Override public String getReleaseTag(String releaseAtom) { return ""; }
     @Override public boolean openFile(String filename) { return false; }
