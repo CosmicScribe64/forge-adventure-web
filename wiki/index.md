@@ -15,13 +15,13 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[reflection-on-teavm]]: the three ways to provide metadata, by-name classes, the EventBus stub, SerialHooks
 - [[saves]]: own object-stream format, IndexedDB, the colorIdentity bug, autosave cost
 - [[world-generation]]: WFC, from 44-70 s down to 6.6 s, with Forge patches, Web Workers and the wfc-golden check
-- [[memory-budget]]: where memory goes, leaks fixed, the phone target of under 1 GB
+- [[memory-budget]]: where memory goes, leaks fixed, the phone target of under 1 GB, the WebKit attribution
 - [[startup-and-loading]]: from index.html's prefetch through WebLauncher and card loading to the title screen, and progress reporting
 - [[screen-layout]]: canvas sizing, extended design size, ViewLayout, resizing and rotation
 - [[build-pipeline]]: Docker, scripts, TeaVM environment variables, the 7.7 GB memory ceiling
 - [[classic-code-pruning]]: ReachReport and Unsupported, to cut Classic code from app.js
 - [[selftest]]: the 25 s check suite; one check per real bug
-- [[unit-tests]]: JVM and Python tests (file store, latin1-js, Forge's own), run by scripts/unit-test and CI
+- [[unit-tests]]: JVM and Python tests (file store, latin1-js, JSBody names, Forge's own), run by scripts/unit-test and CI
 - [[e2e-tests]]: the boot, new game and cycle scenarios in desktop, Chromium phone and WebKit iPhone modes, CI and release wiring, the release rehearsal and the live 0.1.1 baseline
 - [[webtest-harness]]: webtest.py steps, the in-game WebTest harness, play scripts, gaps
 
@@ -65,4 +65,4 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[src-web-layer-code]]: the project's own code, and what it says beyond NOTES
 
 ## Analyses
-_(none yet; filed answers to questions go here)_
+- [[webkit-memory]]: where Linux WebKit's 1.9 to 2.3 GB goes (JavaScriptCore headroom, card-loading and BigInt garbage, a minified-build bug), what did not matter, what would apply on an iPhone

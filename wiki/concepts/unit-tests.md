@@ -1,7 +1,7 @@
 ---
 type: concept
-sources: [scripts/unit-test, web/build.gradle.kts, web/src/unit/java/forgeweb/fs/FileStoreTest.java, web/tools/test_latin1_js.py, .github/workflows/ci.yml]
-updated: 2026-10-05
+sources: [web/tools/test_jsbody_names.py, scripts/unit-test, web/build.gradle.kts, web/src/unit/java/forgeweb/fs/FileStoreTest.java, web/tools/test_latin1_js.py, .github/workflows/ci.yml]
+updated: 2026-10-06
 tags: [testing, ci]
 ---
 
@@ -10,7 +10,7 @@ tags: [testing, ci]
 Fast tests that run on the plain JVM and in Python, with no browser and no TeaVM compile. They
 cover logic that was otherwise exercised only through slow browser runs ([[selftest]], [[webtest-harness]]).
 `scripts/unit-test` runs them locally and in CI. As of 2026-10-05 there are 27 JUnit tests, 15
-Python tests and 11 Forge tests.
+Python tests and 11 Forge tests (17 Python tests from 2026-10-06, with `test_jsbody_names.py`).
 
 ## Running them
 - `scripts/unit-test` runs the Python tests and the web module's JUnit tests (Gradle task
@@ -50,6 +50,11 @@ astral characters as surrogate pairs, Latin-1 left alone, refusal of a character
 backslash (and no change to the file), and source map columns: they shift by the extra length of
 the escapes before them, an astral character counts as two UTF-16 units, and other lines and maps
 without escapes stay unchanged.
+
+## The test_jsbody_names.py tests
+`web/tools/test_jsbody_names.py` reads every `@JSBody` in `web/src` and fails if its script declares (var, let, const, function or arrow parameter) a single letter among the
+first parameter-count-plus-one letters of the alphabet. A minified build renames the parameters of a `@JSBody` to those letters and leaves the script alone, so such a variable hides a
+parameter. This was a real bug in `Http.takePrefetched`, `UserDataStore.takeStored` and `TDeflaterOutputStream` ([[bug-catalog]], [[webkit-memory]]).
 
 ## Forge's tests
 Forge has three TestNG classes outside the desktop module: `ManaCostBeingPaidTest` and

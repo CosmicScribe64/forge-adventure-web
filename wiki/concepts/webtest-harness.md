@@ -1,7 +1,7 @@
 ---
 type: concept
-sources: [scripts/e2e-boot, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/loader-watch.js, NOTES.md#round-8, NOTES.md#round-11, NOTES.md#debugging-a-stuck-run, PLAN.md#phase-7, PLAN.md#next, web/tools/webtest.py, web/src/main/java/forgeweb/test/WebTest.java, scripts/play-start, scripts/play, scripts/api]
-updated: 2026-10-05
+sources: [web/tools/webkit-memory.py, scripts/e2e-boot, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/loader-watch.js, NOTES.md#round-8, NOTES.md#round-11, NOTES.md#debugging-a-stuck-run, PLAN.md#phase-7, PLAN.md#next, web/tools/webtest.py, web/src/main/java/forgeweb/test/WebTest.java, scripts/play-start, scripts/play, scripts/api]
+updated: 2026-10-06
 tags: [testing, harness, playwright]
 ---
 
@@ -44,6 +44,9 @@ needs cross-origin isolation, which the page does not have, so it reports nothin
 wasm memory sizes come from the page. `assert-max` and `assert-growth` print "skipped" for a value the engine can't report.
 A browser's own "Failed to load resource" console line names no URL, so webtest writes `[netfail]` lines with the status and URL
 of every failed request to the log.
+
+`web/tools/webkit-memory.py` (2026-10-06) is a separate probe for WebKit's web process: stage times with RSS, `VmHWM`, an idle sawtooth (minimum, median, maximum), and the anonymous
+mappings from `smaps`. It has to run inside the Playwright container, and JavaScriptCore options (`JSC_useJIT=0`, `JSC_logGC=basic` with `DEBUG=pw:browser`) go in through the environment. See [[webkit-memory]].
 
 ### Assertions and the boot smoke test (2026-10-05)
 Three steps fail the run with a clear `FAIL:` line and exit code 1 (a plain `until` that times out

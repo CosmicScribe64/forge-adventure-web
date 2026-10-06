@@ -1,7 +1,7 @@
 ---
 type: bug
 sources: [NOTES.md, NOTES.md#round-11, web/src/main/java]
-updated: 2026-10-05
+updated: 2026-10-06
 tags: [bugs, upstream]
 ---
 
@@ -75,5 +75,6 @@ is filed.
 | Forge's card texture cap (`Forge.cacheSize`) never took effect: loaded textures were handed out before the code that records them for eviction, and the old eviction dropped all but the last few loads (found 2026-10-05, scrolling 600 cards in the deck editor kept 632 MB of textures) | fixed in `ImageCache` (least-recently-used set, counted when a load is requested), cap 120 in the browser; any cache needs a test that exceeds its cap |
 | Card zip deflated per entry, inflated by TeaVM's JZlib (R11) | let the browser decompress (gzip with `DecompressionStream`), and never use compiled Java zlib on a hot path |
 | `HowlMusic.dispose()` revoked the track's Blob URL at once, while the audio element's asynchronous fetch of it had perhaps not started (the title screen swaps its music within half a second) | WebKit logged `Failed to load resource` (no URL) in about one boot in three, which failed `--strict`; Chromium never did | revoke after 5 s (`HowlMusic.revokeUrl`); found through the `[netfail]` lines of webtest |
+| A `@JSBody` script declared a variable with the name a minified build gives to one of its parameters (`var b` and the parameter `url` renamed to `b`), so `delete p[url]` ran `delete p[b]` on a 22 MB array: a string of 22 million numbers (0.7 GB transient in WebKit), the prefetched file never released (76 MB), and in `TDeflaterOutputStream` a closure parameter `e` hid the callback `failed` (found and fixed 2026-10-06, [[webkit-memory]]) | give the variables of a `@JSBody` script long names; `web/tools/test_jsbody_names.py` flags single letters that a minified build may use for the parameters |
 
 See also [[teavm-gotchas]], [[open-issues]].

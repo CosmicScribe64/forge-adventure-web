@@ -389,3 +389,12 @@ Next steps:
 - README's Status section now gives WebKit's numbers next to Chromium's: about 1.9 GB at the
   title screen and 2.3 to 2.5 GB on the overworld in Linux WebKit with an iPhone profile, so
   iPhones are likely to still crash. The earlier wording gave only Chromium's figures.
+
+## [2026-10-06] analysis | Where WebKit's memory goes
+- Took apart the 1.9 GB (title) and 2.3 GB (overworld) of Playwright's Linux WebKit, with `smaps`, JavaScriptCore options in the environment (`JSC_useJIT`, `JSC_forceRAMSize`, `JSC_logGC`), a blank page, a parse-only page,
+  hooks on typed arrays, BigInt and WebGL calls, and Chromium's allocation sampler with the source map. Result in the new [[webkit-memory]]: live data equals Chromium's (550 to 600 MB), the collector's headroom
+  triples it, and the headroom is filled by the card loader and by BigInt arithmetic in the render loop (TeaVM's `long`); parse, JIT tiers, GL calls and the assumed RAM size do not matter.
+- Found and fixed a bug of ours that a minified build exposed: `@JSBody` parameters renamed to `b` were replaced by the scripts' own `var b` (`Http.takePrefetched`, `UserDataStore.takeStored`; also the error path of
+  `TDeflaterOutputStream`). It made a 700 MB transient in WebKit and kept 76 MB of prefetched files; Chromium is 33 MB smaller (menu 538 MB, overworld 650 MB on desktop). New `web/tools/test_jsbody_names.py` and probe `web/tools/webkit-memory.py`.
+- WebKit's peak is unchanged by the fix. Updated [[memory-budget]] (new section, superseded table row), [[open-issues]] (attribution and ranked options), [[bug-catalog]], [[unit-tests]], [[webtest-harness]], [[index]].
+  Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.

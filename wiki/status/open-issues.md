@@ -1,7 +1,7 @@
 ---
 type: status
 sources: [PLAN.md#next, NOTES.md#review, NOTES.md#round-6, NOTES.md#round-11]
-updated: 2026-10-05
+updated: 2026-10-06
 tags: [issues, todo]
 ---
 
@@ -31,18 +31,17 @@ the change.
   The cheap first step, `CardType` and `CardRules` creating their collections on first add, is done
   (21 MB, 2026-10-05).
 - [ ] **WebKit needs about three times Chromium's memory** (found 2026-10-05 with the WebKit iPhone run of
-  [[e2e-tests]]). Playwright's WebKit 26.0 (the WPE port on Linux, no memory limit) has a web process of 1.9 GB RSS at
-  the title screen and 2.3 to 2.5 GB at the overworld, seed 1, release build; a page with one empty WebGL canvas is 0.38 GB there.
-  Chromium's renderer is 0.57 and 0.68 GB, plus a 0.23 and 0.39 GB GPU process. The release 0.1.1 site in the same WebKit
-  is 2.7 GB at the title and 3.5 GB at the overworld (textures 295 and 347 MB). RSS peaks at 1.67 GB about 8 s into
-  loading (reading and compiling the 20 MB `app.js`, preloading libGDX), settles near 1.25 GB, then climbs to 1.9 GB as the cards
-  load. Limiting the container's memory showed the tab does not shrink under pressure: with 2.2 GB it survived the title screen
-  and crashed on New Game, with 1.5 GB it crashed at 8 s. In the same engine a 160 MB wasm memory costs 160 MB once touched and
-  200,000 strings cost about 35 MB, so the excess is in the script and its objects (bytecode, compiled code or the card
-  data as JavaScript objects), not in wasm or textures. It is not yet attributed. A real iPhone has the same JavaScript engine but its own
-  limits, so this is the most likely reason 0.1.1 crashed there, and it still applies to 0.1.2. Next: a Safari Web Inspector
-  memory timeline on a real iPhone, and measuring how much of the peak is the parse (for example by loading a script of the same size that
-  does nothing).
+  [[e2e-tests]]; attributed 2026-10-06 in [[webkit-memory]]). Playwright's WebKit 26.0 (the WPE port on Linux, no memory limit) has a web process of 1.9 GB RSS at
+  the title screen and 2.3 to 2.5 GB at the overworld, seed 1, release build (`VmHWM` 2.0 to 2.3 GB at the title); a page with one empty WebGL canvas is 0.37 GB there.
+  Chromium's renderer is 0.54 and 0.65 GB, plus a 0.23 and 0.39 GB GPU process. The release 0.1.1 site in the same WebKit
+  is 2.7 GB at the title and 3.5 GB at the overworld. **Cause:** the live data is as large as in Chromium (550 to 600 MB in JavaScriptCore's heap), but the collector lets
+  the heap grow to about three times that before it collects, and our code fills the headroom with garbage: the card loader (12 s, 4 million `char[]` and 143,000 `byte[]`)
+  and the render loop (about 9000 BigInt operations a frame at the title screen, because TeaVM stores `long` as `BigInt` and TextraTypist keeps each glyph in a `long`).
+  Not the cause: parsing `app.js` (+58 MB), JIT tiers, concurrent GC, wasm, WebGL calls, or the RAM size JavaScriptCore assumes (4 and 6 GB tried). Fixed so far: a minified-build
+  bug that made a 700 MB transient and kept 76 MB of prefetched files (33 MB less in Chromium, no change to WebKit's peak). **Options, by saving:** a slim card database
+  built ahead of time (the live part and most of the loader's churn, about 10 s of start), then removing the BigInt work from the render loop (a TextraTypist `Font` fork, or
+  `int` hashing in libGDX's maps; 0.25 to 0.4 GB and CPU), then a real iPhone measurement with Safari's Web Inspector, which this container cannot replace (the 0.37 GB base is
+  software GL that an iPhone keeps in its GPU process). Whether iOS charges the tab less than Linux RSS is not known.
 - [ ] **The canvas is drawn at CSS pixels on a phone.** At 390x844 and device scale factor 3 the canvas backing store is
   390x844, not 1170x2532, so text and sprites are upscaled by the browser. It costs no extra texture or framebuffer memory,
   which is why the phone numbers equal the desktop ones, but it is soft. Whether to render at full resolution is a decision

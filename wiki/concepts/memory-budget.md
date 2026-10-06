@@ -1,7 +1,7 @@
 ---
 type: concept
-sources: [web/tools/heap-owners.js, NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py, scripts/e2e-newgame, web/src/main/java/forgeweb/fs/FileStore.java, patches/forge-web.patch]
-updated: 2026-10-05
+sources: [web/tools/webkit-memory.py, web/src/main/java/forgeweb/fs/Http.java, web/tools/heap-owners.js, NOTES.md#baseline, NOTES.md#round-9, NOTES.md#review, PLAN.md#phase-5, scripts/build-web, web/tools/latin1-js.py, web/html/index.html, web/src/main/java/forgeweb/fs/WebFileSystem.java, web/tools/webtest.py, scripts/e2e-newgame, web/src/main/java/forgeweb/fs/FileStore.java, patches/forge-web.patch]
+updated: 2026-10-06
 tags: [memory, phones, performance]
 ---
 
@@ -21,13 +21,17 @@ Runs differ by a few MB, up to about 10 MB for RSS, so the table gives the range
 
 | Measure | Menu, desktop | Menu, phone | Overworld, desktop | Overworld, phone |
 |---|---|---|---|---|
-| Renderer RSS | 574 to 575 MB | 581 MB | 684 to 690 MB | 687 MB |
+| Renderer RSS | 538 MB | 539 MB | 650 MB | 651 MB |
 | JS heap used | 246 to 247 MB | 246 MB | 268 to 269 MB | 268 MB |
 | Live WebGL textures | 75.4 MB | 73.8 MB | 124.0 MB | 122.4 MB |
 | Wasm pixmap heap (live) | 7 MB | 7 MB | 40 MB | 40 MB |
 | GPU process RSS (software GL) | 228 to 231 MB | 209 MB | 342 to 378 MB | 297 MB |
 
 `scripts/e2e-newgame` takes its limits from these numbers ([[webtest-harness]]).
+
+> [!note] Superseded 2026-10-06
+> The renderer RSS row was 574 to 575 MB (menu, desktop), 581 MB (menu, phone), 684 to 690 MB (overworld, desktop) and 687 MB (overworld, phone) before the prefetch fix
+> (the prefetched files were never released, see "WebKit attribution" below). The e2e-newgame limits were set from the old numbers and keep their room.
 
 ## Phone emulation and WebKit (2026-10-05)
 
@@ -50,10 +54,24 @@ the WebKit RSS varies by a few hundred MB between runs, so it shows as a range o
 - WebKit (Playwright's WPE build 26.0 on Linux, the iPhone 13 descriptor) offers no JS heap number. Its web process is
   three times Chromium's renderer, and in this port the software GL runs inside it, so a blank page with one WebGL canvas
   already costs 0.38 GB. The same page of the 0.1.1 release is 2.7 GB at the title and 3.5 GB at the overworld
-  (textures 295 and 347.5 MB). Attribution and what is known are in [[open-issues]]; the WebKit RSS is recorded
+  (textures 295 and 347.5 MB). Attribution is in the section below and in [[webkit-memory]]; the WebKit RSS is recorded
   by the run and not asserted.
 - `window.forgePixmaps`, the texture count of `web/tools/glhook.js` and the wasm memory sizes (160 MB at the menu, 173 MB at the
   overworld) are identical in all three engines, so those three are the numbers to compare across them.
+
+## WebKit attribution (2026-10-06)
+
+Full detail, method and numbers are in [[webkit-memory]]. Summary, from the same minified build in Playwright's WebKit with the iPhone 13 profile:
+
+- Live data is about the same as Chromium's (JavaScriptCore's heap after a full collection: 550 to 600 MB). The excess is the garbage-collected heap growing to
+  about three times that before a collection (1.2 GB at the card loading, up to 1.68 GB at the idle title screen), on top of 0.37 GB for an empty WebGL page
+  (software GL runs in the web process here). RSS follows the top of the heap, so it saws between 1.65 and 2.27 GB at the idle title screen and `VmHWM` is 2.0 to 2.3 GB.
+- Two sources of garbage fill the headroom: the card loader (4 million `char[]`, 143,000 `byte[]`, 1.9 million `int[]` in 12 s) and the render loop, which
+  makes about 9000 BigInt operations a frame at the title screen because TeaVM 0.15 stores every `long` as a `BigInt` (TextraTypist keeps each glyph in a `long`).
+- A bug of ours cost a transient 700 MB in WebKit (and 33 MB for good in every engine): in a minified build a `@JSBody` parameter renamed to `b` was replaced by the
+  script's own `var b`, so `Http.takePrefetched` made a string of 22 million numbers and never released the prefetched files. Fixed on 2026-10-06 (long variable names, and
+  `web/tools/test_jsbody_names.py`). Chromium after the fix, one run each: menu 538 MB on desktop and 539 MB on a phone (570 and 573 before), overworld 650 and 651 MB (683 and 684 before);
+  JS heap, textures and pixmaps did not change. WebKit's title `VmHWM` and idle maximum did not change.
 
 ## Where memory goes (baseline, 2026-09-29, headless, software GL)
 
