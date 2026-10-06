@@ -48,7 +48,25 @@
     const s = await Promise.race([cmd("state"), sleep(5000).then(() => null)]);
     return s && pred(s.scene) ? s : false;
   });
-  const shot = async name => { await sleep(500); log("shot " + name); await post("/__shot?name=" + name, ""); };
+  // The share of sampled pixels that are not black, read from the game's own WebGL context right after the game
+  // drew a frame: tells a screenshot that is black because the game drew nothing from one the device couldn't capture.
+  const canvasInk = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+    try {
+      const c = document.getElementById("canvas"), gl = c.getContext("webgl2") || c.getContext("webgl");
+      const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(4);
+      let n = 0, ink = 0;
+      for (let i = 1; i < 20; i++) for (let j = 1; j < 20; j++) {
+        gl.readPixels(Math.floor(w * i / 20), Math.floor(h * j / 20), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        n++; if (px[0] + px[1] + px[2] > 24) ink++;
+      }
+      res(ink / n);
+    } catch (e) { res("error " + e.message); }
+  })));
+  const shot = async name => {
+    await sleep(500);
+    log("shot " + name + ", canvas ink " + (await canvasInk()));
+    await post("/__shot?name=" + name, "");
+  };
   const mem = async name => { log("mem " + name); await post("/__mem?name=" + name, ""); };
 
   // A finger: touchstart and touchend on the canvas where the game says the button is (the game reads touch events).
@@ -116,11 +134,24 @@
       try {
         await cmd("goto portal"); await sleep(8000); await cmd("dismiss"); await sleep(2000);
         await cmd("console spawn enemy \"Clay Golem\""); await sleep(1500);
-        await cmd("goto Clay Golem"); await sleep(2500);
-        await shot("vs-a"); await sleep(1500); await shot("vs-b"); await sleep(3000);
+        // Walk to the golem; a dialog can interrupt the walk ("interrupted by dialog"), so dismiss it and go again.
+        let d = null, vsShots = 0;
+        for (let i = 0; i < 8 && !d; i++) {
+          await cmd("dismiss"); await sleep(500);
+          const r = await cmd("goto Clay Golem"); log("goto: " + JSON.stringify(r).slice(0, 100));
+          for (let j = 0; j < 12 && !d; j++) {
+            await sleep(1500);
+            const x = await cmd("duel");
+            const st = await Promise.race([cmd("state"), sleep(4000).then(() => ({}))]);
+            if (j % 4 === 0) log("scene " + st.scene);
+            if (x && x.turn !== undefined) d = x;
+            else if (st.scene && !["TileMapScene", "GameScene"].includes(st.scene)) { d = { turn: "-", phase: "scene " + st.scene }; }
+            else if (vsShots < 2 && j === 2) { await shot("vs-" + "ab"[vsShots++]); }
+          }
+        }
+        if (!d) throw new Error("no duel after 8 walks to the golem");
         await displayCheck("vs");
-        // the duel is up once the harness has a game to describe ("duel" answers null before)
-        const d = await until("a duel", 120, async () => { const x = await cmd("duel"); return x && x.turn !== undefined ? x : false; });
+        if (d.turn === "-") { try { d = await until("the duel game", 60, async () => { const x = await cmd("duel"); return x && x.turn !== undefined ? x : false; }); } catch (e) { log("no duel game yet: " + e.message); } }
         await sleep(4000); await shot("duel"); await mem("duel");
         check("duel reached", true, "turn " + d.turn + " phase " + d.phase);
         await displayCheck("duel"); errorCheck("duel");

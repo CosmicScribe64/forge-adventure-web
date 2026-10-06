@@ -70,8 +70,19 @@ jobs:
         with:
           path: web/build/site
 
-  deploy:
+  # The assembled site (the github-pages artifact the build job uploaded) in Mobile Safari in the iOS Simulator
+  # and in Chrome in an Android emulator (devices.yml, about 25 minutes, the two in parallel). Advisory for now: the
+  # deploy waits for it but goes ahead when it fails, until the device runs have proven stable (wiki/concepts/e2e-tests.md).
+  devices-built:
     needs: build
+    uses: ./.github/workflows/devices.yml
+    with:
+      site_artifact: github-pages
+      label: "-built"
+
+  deploy:
+    needs: [build, devices-built]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -115,3 +126,12 @@ jobs:
             out/e2e-*.log
             out/e2e-*.png
           if-no-files-found: ignore
+
+  # The live site in the same two device simulators, once the desktop, phone and iPhone checks above passed (so
+  # the CDN serves the new files).
+  devices-live:
+    needs: [deploy, verify-live]
+    uses: ./.github/workflows/devices.yml
+    with:
+      site_url: ${{ needs.deploy.outputs.page_url }}
+      label: "-live"

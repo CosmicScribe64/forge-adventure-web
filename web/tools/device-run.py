@@ -73,7 +73,7 @@ def ios_webcontent():
 
 def android_chrome():
     """Chrome's processes with their PSS in MB from dumpsys meminfo, the renderer (sandboxed process) first."""
-    out = sh(["adb", "shell", "dumpsys", "meminfo", "com.android.chrome"]).stdout
+    out = sh(["adb", "shell", "dumpsys", "meminfo"]).stdout
     procs = []
     in_pss = False
     for line in out.splitlines():
@@ -82,11 +82,12 @@ def android_chrome():
             continue
         if in_pss:
             m = re.match(r"\s*([\d,]+)K: (\S+) \(pid (\d+)", line)
-            if m:
+            if m and "chrome" in m.group(2):
                 procs.append({"pss_mb": round(int(m.group(1).replace(",", "")) / 1024), "name": m.group(2), "pid": int(m.group(3))})
-            elif procs:
+            elif not m and line.strip() == "":
                 break
-    return sorted(procs, key=lambda p: ("sandboxed" not in p["name"], -p["pss_mb"])), out
+    chrome = "\n".join(l for l in out.splitlines() if "chrome" in l or "Total PSS" in l or "Total RAM" in l)
+    return sorted(procs, key=lambda p: ("sandboxed" not in p["name"], -p["pss_mb"])), chrome
 
 
 def take_shot(name):
