@@ -72,6 +72,9 @@ Full detail, method and numbers are in [[webkit-memory]]. Summary, from the same
   script's own `var b`, so `Http.takePrefetched` made a string of 22 million numbers and never released the prefetched files. Fixed on 2026-10-06 (long variable names, and
   `web/tools/test_jsbody_names.py`). Chromium after the fix, one run each: menu 538 MB on desktop and 539 MB on a phone (570 and 573 before), overworld 650 and 651 MB (683 and 684 before);
   JS heap, textures and pixmaps did not change. WebKit's title `VmHWM` and idle maximum did not change.
+- Later the same day three quarters of the BigInt operations were removed (9040 to 2145 a frame at the title screen, 70,700 to 16,500 at the overworld) by writing `long` literals as BigInt literals in the
+  `app.js` patch and by integer hashing in three libGDX maps ([[bigint-churn]]). Chromium RSS did not change (535 and 640 MB), the overworld is 5 percent faster in software GL, and WebKit's
+  idle sawtooth and `VmHWM` stayed within the run-to-run spread (overworld idle median 70 to 180 MB lower, title maximum 2.25 to 2.32 GB before and after). BigInt was not the main garbage that fills the headroom.
 
 ## Where memory goes (baseline, 2026-09-29, headless, software GL)
 

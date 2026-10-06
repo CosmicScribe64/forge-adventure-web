@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [web/tools/test_jsbody_names.py, scripts/unit-test, web/build.gradle.kts, web/src/unit/java/forgeweb/fs/FileStoreTest.java, web/tools/test_latin1_js.py, .github/workflows/ci.yml]
+sources: [web/src/unit/java/forgeweb/shim/FibHashTest.java, web/tools/test_jsbody_names.py, scripts/unit-test, web/build.gradle.kts, web/src/unit/java/forgeweb/fs/FileStoreTest.java, web/tools/test_latin1_js.py, .github/workflows/ci.yml]
 updated: 2026-10-06
 tags: [testing, ci]
 ---
@@ -28,9 +28,11 @@ manifest parsing, packs, lazy downloads, path canonicalisation and the trim poli
 `schedule`, `recordFetch`). In the tests `FakeHost` serves canned bytes, counts downloads, and
 runs timers only when `advance(ms)` moves its clock. Behaviour is unchanged.
 
-The Gradle `unit` source set compiles only `FileStore`, `Node` and the tests from `web/src`, so it
+The Gradle `unit` source set compiles only `FileStore`, `Node`, `FibHash` and the tests from `web/src`, so it
 needs neither Forge's jars nor TeaVM. `WebVirtualFile` implements TeaVM's `VirtualFile` and is
 not covered; `touch` and `ensureLoaded`, which it calls, are.
+
+`FibHashTest` (2026-10-06) checks that `forgeweb.shim.FibHash.place` equals libGDX's `(int)(item * 0x9E3779B97F4A7C15L >>> shift)` for every shift from 33 to 63 and 20,000 random keys each ([[bigint-churn]]).
 
 The tests include the two bugs of early October 2026:
 - A pack was dropped while idle, before all its files had been read, so a new game downloaded it

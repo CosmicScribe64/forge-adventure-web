@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#how-the-web-layer-plugs-in, NOTES.md#findings, web/src/main/java/forgeweb/teavm, web/src/main/resources/META-INF/services]
-updated: 2026-10-01
+updated: 2026-10-06
 tags: [teavm, architecture]
 ---
 
@@ -18,8 +18,8 @@ TeaVM, using six mechanisms. Picking the right one is the first step of [[add-mi
 | **gdx-teavm emu** | [[gdx-teavm]]'s policy maps `com.badlogic.gdx.X` to `emu.com.badlogic.gdx.X` | `web/src/main/java/emu/...` | pure-Java Box2D subset; fixed `Gdx2DPixmapNative`, `AsyncResult`, `FreeType` |
 | **CallRedirector** (TeaVM plugin) | rewrites individual call sites to static helpers; the receiver becomes the first argument. Also handles any-owner matches, constructor overloads that drop the last argument, and owner renames. | `forgeweb/teavm/CallRedirector.java`, helpers in `forgeweb/compat/JdkCompat`, `GdxCompat`, `GameCompat`, `Progress` | single missing or wrong methods: `Throwable.addSuppressed`, `Runtime.availableProcessors`, `Thread.sleep`, `UUID.randomUUID`, `String.format`, `Gdx.files.absolute`, ... |
 | **Unsupported** (TeaVM plugin) | replaces the bodies of named Forge methods with a throw or a no-op | `forgeweb/teavm/Unsupported.java` | cutting Classic-only code out of app.js ([[classic-code-pruning]]) |
-| **Library class shadow** (R11) | a copy of a third-party class under its own name in `web/src`; project classes come first on the TeaVM classpath. Change only a marked block, and note the pinned version | `web/src/main/java/com/badlogic/gdx/graphics/g2d/NinePatch.java` (libGDX 1.14.2), `com/ray3k/tenpatch/TenPatchDrawable.java` (TenPatch 5.2.3) | bugs in libraries that aren't `java.*` and aren't in gdx-teavm's emu (texture seams, [[screen-layout]]) |
-| **app.js post-build patch** (R11) | `web/build.gradle.kts` rewrites a snippet of the generated JavaScript after every JS build, streaming the file; the build fails if the snippet is missing | `web/build.gradle.kts` (`Long_fromNumber`) | TeaVM runtime JS (`long.js`, `runtime.js`), which TeaVM reads through its own class loader and so can't be shadowed |
+| **Library class shadow** (R11) | a copy of a third-party class under its own name in `web/src`; project classes come first on the TeaVM classpath. Change only a marked block, and note the pinned version | `web/src/main/java/com/badlogic/gdx/graphics/g2d/NinePatch.java` (libGDX 1.14.2), `com/ray3k/tenpatch/TenPatchDrawable.java` (TenPatch 5.2.3), `com/badlogic/gdx/utils/{IntMap,IntFloatMap,ObjectIntMap}.java` (libGDX 1.14.2, `place` hashes without a 64-bit multiply, [[bigint-churn]]) | bugs in libraries that aren't `java.*` and aren't in gdx-teavm's emu (texture seams, [[screen-layout]]) |
+| **app.js post-build patch** (R11) | `web/build.gradle.kts` rewrites a snippet of the generated JavaScript after every JS build, streaming the file; the build fails if the snippet is missing | `web/build.gradle.kts` (`Long_fromNumber`, and `long` literals as BigInt literals, [[bigint-churn]]) | TeaVM runtime JS (`long.js`, `runtime.js`), which TeaVM reads through its own class loader and so can't be shadowed |
 | **Forge patch** | edits to Forge source | `patches/forge-web.patch` | behaviour changes, performance, layout; upstreamable ([[forge-patches-not-fork]]) |
 
 Plus **reflection metadata**: `forgeweb.teavm.WebReflection`, a `ReflectionSupplier`. See

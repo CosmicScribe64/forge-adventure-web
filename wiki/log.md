@@ -398,3 +398,12 @@ Next steps:
   `TDeflaterOutputStream`). It made a 700 MB transient in WebKit and kept 76 MB of prefetched files; Chromium is 33 MB smaller (menu 538 MB, overworld 650 MB on desktop). New `web/tools/test_jsbody_names.py` and probe `web/tools/webkit-memory.py`.
 - WebKit's peak is unchanged by the fix. Updated [[memory-budget]] (new section, superseded table row), [[open-issues]] (attribution and ranked options), [[bug-catalog]], [[unit-tests]], [[webtest-harness]], [[index]].
   Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.
+
+## [2026-10-06] analysis | BigInt churn in the render loop
+- Profiled one idle title frame and one overworld frame by counting `BigInt.asIntN`, `asUintN` and `BigInt()` and sampling stacks (Chromium, minified build, source map). Title: 9040 operations a frame; overworld: 70,700. By call site: TextraTypist `Font`
+  (`calculateSize`, `drawGlyph`) 53 percent, libGDX `IntMap`, `IntFloatMap` and `ObjectIntMap` `place` 34 percent (a third at the title, 38 percent at the overworld; the earlier "a tenth" was wrong), label loops 13 percent. Full table in the new [[bigint-churn]].
+- Removed three quarters without forking TextraTypist: `web/build.gradle.kts` now rewrites TeaVM's `long` literals (4546 in the game build) as BigInt literals and builds shift counts from a table; `IntMap`, `IntFloatMap` and `ObjectIntMap` are shadowed
+  with a `place` that uses `forgeweb.shim.FibHash` (32-bit arithmetic, same slots as libGDX). Now 2145 a frame at the title and 16,500 at the overworld. New tests: `FibHashTest`, a SelfTest check (40 of 40, readable and minified).
+- Result: Chromium RSS unchanged (535 and 640 MB), overworld 5 percent faster in software GL, WebKit idle sawtooth and `VmHWM` unchanged beyond the run spread (so BigInt was not the main garbage). A fork of `Font` would remove the remaining 2145; not done. Unit tests, SelfTest (both builds) and the release rehearsal (7 of 7) pass.
+  `web/tools/webkit-memory.py` gained `--newgame`. Updated [[webkit-memory]], [[memory-budget]], [[open-issues]], [[build-pipeline]], [[web-layer-mechanisms]], [[code-map]], [[selftest]], [[unit-tests]], [[index]].
+  Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.

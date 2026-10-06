@@ -36,11 +36,12 @@ the change.
   Chromium's renderer is 0.54 and 0.65 GB, plus a 0.23 and 0.39 GB GPU process. The release 0.1.1 site in the same WebKit
   is 2.7 GB at the title and 3.5 GB at the overworld. **Cause:** the live data is as large as in Chromium (550 to 600 MB in JavaScriptCore's heap), but the collector lets
   the heap grow to about three times that before it collects, and our code fills the headroom with garbage: the card loader (12 s, 4 million `char[]` and 143,000 `byte[]`)
-  and the render loop (about 9000 BigInt operations a frame at the title screen, because TeaVM stores `long` as `BigInt` and TextraTypist keeps each glyph in a `long`).
+  and the render loop (about 9000 BigInt operations a frame at the title screen, because TeaVM stores `long` as `BigInt` and TextraTypist keeps each glyph in a `long`; three quarters of them
+  were removed on 2026-10-06, see [[bigint-churn]], with no clear change to WebKit's idle range, so the loader and the live card data are the larger part).
   Not the cause: parsing `app.js` (+58 MB), JIT tiers, concurrent GC, wasm, WebGL calls, or the RAM size JavaScriptCore assumes (4 and 6 GB tried). Fixed so far: a minified-build
   bug that made a 700 MB transient and kept 76 MB of prefetched files (33 MB less in Chromium, no change to WebKit's peak). **Options, by saving:** a slim card database
-  built ahead of time (the live part and most of the loader's churn, about 10 s of start), then removing the BigInt work from the render loop (a TextraTypist `Font` fork, or
-  `int` hashing in libGDX's maps; 0.25 to 0.4 GB and CPU), then a real iPhone measurement with Safari's Web Inspector, which this container cannot replace (the 0.37 GB base is
+  built ahead of time (the live part and most of the loader's churn, about 10 s of start), then the last 2145 BigInt operations a frame (a TextraTypist `Font` fork, or a cache of label sizes;
+  CPU, and little memory by the measurement in [[bigint-churn]]), then a real iPhone measurement with Safari's Web Inspector, which this container cannot replace (the 0.37 GB base is
   software GL that an iPhone keeps in its GPU process). Whether iOS charges the tab less than Linux RSS is not known.
 - [ ] **The canvas is drawn at CSS pixels on a phone.** At 390x844 and device scale factor 3 the canvas backing store is
   390x844, not 1170x2532, so text and sprites are upscaled by the browser. It costs no extra texture or framebuffer memory,

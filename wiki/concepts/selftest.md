@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#fast-checks, NOTES.md#round-11, web/src/main/java/forgeweb/selftest/SelfTest.java, scripts/selftest]
-updated: 2026-10-05
+updated: 2026-10-06
 tags: [testing]
 ---
 
@@ -45,6 +45,7 @@ Grouped by concept:
 - **Saves**: value round-trip, save hooks, header round-trip, JDK-format rejected, EnumMap,
   deck round-trip. ([[saves]])
 - **Rendering**: `Pixmap.drawPixmap` stays cheap on a big pixmap.
+- **Long arithmetic**: literals, shifts and `FibHash` slots against the `long` formula, plus lookups in the shadowed libGDX maps (the build patches `long` literals into BigInt literals, [[bigint-churn]]).
 - **End to end**: loads the real card DB (as FModel does) and plays **two AI-vs-AI matches**
   with Adventure starter decks, one with plain rules and one with `GameType.Adventure` and
   `forVariants`. This takes about 2 min on its own.
@@ -52,7 +53,7 @@ Grouped by concept:
 
 ## Minified build (2026-10-05)
 `TEAVM_OBFUSCATED=true scripts/selftest` compiles SelfTest with TeaVM `obfuscated = true`. All 39 checks
-pass minified and readable (2026-10-05; the minified run takes 68 s in the page after a 5 min build).
+pass minified and readable (2026-10-05; 40 of 40 on 2026-10-06 after the check for long literals and hash slots, readable and minified; the minified run takes 68 s in the page after a 5 min build).
 The first minified run (before the fixes) passed 35 and failed four:
 - The build failed at the end, because the `doLast` in `web/build.gradle.kts` matched `Long_fromNumber`
   by name and the name was gone. With the unpatched `app.js`, the (long) cast check failed too

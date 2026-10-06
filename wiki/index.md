@@ -1,6 +1,6 @@
 ---
 type: overview
-updated: 2026-10-01
+updated: 2026-10-06
 ---
 
 # Index
@@ -65,4 +65,5 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[src-web-layer-code]]: the project's own code, and what it says beyond NOTES
 
 ## Analyses
+- [[bigint-churn]]: where TeaVM's BigInt `long` arithmetic came from in the render loop (call sites with counts), the two changes that removed three quarters of it, before and after numbers, what is left and what belongs upstream
 - [[webkit-memory]]: where Linux WebKit's 1.9 to 2.3 GB goes (JavaScriptCore headroom, card-loading and BigInt garbage, a minified-build bug), what did not matter, what would apply on an iPhone

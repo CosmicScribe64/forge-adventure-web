@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#layout, NOTES.md#reproduce, NOTES.md#round-8, web/build.gradle.kts, scripts]
-updated: 2026-10-05
+updated: 2026-10-06
 tags: [build, docker, teavm]
 ---
 
@@ -50,6 +50,8 @@ the JS source string Chrome holds at the menu from 73.9 MB to 20.9 MB ([[metrics
 Things that make it work:
 - The long-cast patch in `web/build.gradle.kts` finds `Long_fromNumber` by its body with a regular
   expression (minified output has another name and no spaces) and writes the fix under the name it found.
+  The same `doLast` rewrites `Long_fromInt(15)` and `Long_create(lo, hi)` with literal arguments as BigInt literals (`15n`, 4546 in the game build)
+  and builds the 64 shift counts once, because TeaVM allocates a BigInt each time it runs them ([[bigint-churn]]). It fails the build if a helper is not found or the table anchor is not unique.
 - Code must not read TeaVM's generated JavaScript fields by name. `TObjectInputStream.allocate` did
   (`cls.$classInfo`); it now calls TeaVM's `ClassInfo.newInstance()` ([[saves]]). `$rt_nativeThread` and
   the other `$rt_` runtime functions keep their names.

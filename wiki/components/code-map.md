@@ -1,7 +1,7 @@
 ---
 type: component
 sources: [web/src/main/java, web/html, web/tools, scripts]
-updated: 2026-10-01
+updated: 2026-10-06
 tags: [code, reference]
 ---
 
@@ -30,6 +30,7 @@ This page shows where the project's own code lives and which concept each part s
 | `forgeweb/worker/` | `WfcWorker` (separate build) | [[world-generation]] |
 | `org/teavm/classlib/java/...` | classlib shadows: `lang.TObject` (borrowed monitors), `util.concurrent.*`, `util.concurrent.locks.*`, `util.zip.{TInflater,TDeflater,TDeflaterOutputStream,TZipFile}`, `io.TObject{Input,Output}Stream`+, `text.*`, `sql.*`, `net.*`, `awt.TFont` | [[web-layer-mechanisms]], [[green-threads]], [[saves]] |
 | `com/badlogic/gdx/graphics/g2d/NinePatch`, `com/ray3k/tenpatch/TenPatchDrawable` | library class shadows with the nearest-filtering inset (R11) | [[screen-layout]] |
+| `com/badlogic/gdx/utils/{IntMap,IntFloatMap,ObjectIntMap}`, `forgeweb/shim/FibHash` | libGDX map shadows whose `place` uses 32-bit arithmetic instead of a BigInt multiplication (2026-10-06) | [[bigint-churn]] |
 | `com/github/xpenatan/gdx/teavm/backends/web/webaudio/howler/HowlMusic` | gdx-teavm class shadow: streams music with `html5: true`, retries after the first gesture, revokes the Blob URL (2026-10-04) | [[memory-budget]] |
 | `emu/com/badlogic/gdx/...` | gdx-teavm emu shadows: `Gdx2DPixmapNative`, `freetype/FreeType`, `utils/async/AsyncResult`, Box2D subset | [[memory-budget]] |
 | `forge/.../SelfTestAccess`, `WebTestAccess`, `WebTestStageAccess`, `com/github/.../textra/SelfTestAccess` | package-private access for tests | [[selftest]], [[webtest-harness]] |

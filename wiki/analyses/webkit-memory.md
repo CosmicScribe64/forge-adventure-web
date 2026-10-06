@@ -1,6 +1,6 @@
 ---
 type: analysis
-sources: [web/tools/webkit-memory.py, web/src/main/java/forgeweb/fs/Http.java, web/src/main/java/forgeweb/fs/UserDataStore.java, web/tools/test_jsbody_names.py, web/tools/webtest.py, scripts/e2e-newgame]
+sources: [web/tools/webkit-memory.py, web/build.gradle.kts, web/src/main/java/forgeweb/shim/FibHash.java, web/src/main/java/com/badlogic/gdx/utils/IntMap.java, web/src/main/java/forgeweb/fs/Http.java, web/src/main/java/forgeweb/fs/UserDataStore.java, web/tools/test_jsbody_names.py, web/tools/webtest.py, scripts/e2e-newgame]
 updated: 2026-10-06
 tags: [memory, phones, webkit]
 ---
@@ -11,7 +11,7 @@ Playwright's Linux WebKit needs 1.9 GB at the title screen and 2.3 GB at the ove
 0.68 GB in Chromium's renderer. This page records how that was taken apart on 2026-10-06, what is known, and what is not.
 The short answer: the live data is about the same size in both engines (about 0.55 GB), and JavaScriptCore lets the
 garbage-collected heap grow to about three times that before it collects. The excess is allocation headroom, filled by
-two kinds of churn that the game produces: BigInt arithmetic for every `long`, and the card loader's strings and arrays.
+two kinds of churn that the game produces: BigInt arithmetic for every `long`, and the card loader's strings and arrays. (Removing three quarters of the BigInt operations later did not lower the idle maximum measurably, see "BigInt work removed" below.)
 
 All numbers: Playwright 1.55 WebKit 26.0 (WPE port), iPhone 13 profile, headless, in the Playwright container (4 cores, 15 GB
 RAM, no memory limit), software GL inside the web process, minified build served from the assembled site, seed 1. RSS is the
@@ -61,7 +61,13 @@ The garbage is BigInt. TeaVM 0.15 represents `long` as `BigInt` (hard-coded in i
 title screen at about 50 frames a second the page makes 4700 `BigInt.asIntN`, 1050 `asUintN` and 3300 `BigInt()` calls per frame (counted by wrapping
 them), about 500 KB of heap per frame. Sampling the stacks of one call in 50 (in Chromium, with the source map) puts about half of it in
 TextraTypist, which keeps a glyph, its colour and its style bits in one `long`: `Font` (the source lines 3053 and 3412 of the jar's debug info) and the label drawing
-(`TextraLabel`, `TypingLabel`), and about a tenth in libGDX's `IntMap` and `ObjectMap`, whose `place` multiplies the hash by a 64-bit constant.
+(`TextraLabel`, `TypingLabel`), and about a third in libGDX's `IntMap`, `IntFloatMap` and `ObjectIntMap`, whose `place` multiplies the hash by a 64-bit constant (a first count that put it at a tenth was wrong: the sampled stacks, decoded again with the source map, say a third at the title screen and 38 percent at the overworld).
+
+## BigInt work removed (2026-10-06)
+
+The BigInt churn was attributed by call site and mostly removed (9040 to 2145 operations a frame at the title screen, 70,700 to 16,500 at the overworld) by writing `long` literals as BigInt literals in the build's patch of `app.js`
+and by integer hashing in three libGDX maps. Chromium RSS did not change, the overworld is 5 percent faster in software GL, and WebKit's idle sawtooth and `VmHWM` did not move beyond the run-to-run spread (title maximum 2.25 to 2.32 GB
+before and after; overworld idle median 70 to 180 MB lower). Details, call sites and the measurement table are in [[bigint-churn]]. So BigInt was not the main garbage that fills JavaScriptCore's headroom.
 
 ## What did not matter
 
@@ -108,10 +114,10 @@ So Chromium gained about 33 MB, and WebKit lost the transient but not the peak, 
 
 1. **Slim the card database** (the live part): the live heap is 0.55 GB and the collector's headroom scales with it, so each MB removed saves about two. A build-time binary index of cards, or lazy `CardRules`, is the redesign already
    described under "JS heap by owner" in [[memory-budget]]. It also removes most of the card loader's churn and about 10 s of start.
-2. **Remove the BigInt churn** from the render loop: a fork of TextraTypist's `Font` with the glyph as two `int`s (large), or `int` hashing in shadows of libGDX's `IntMap`, `ObjectMap`, `IntFloatMap` and their relatives (small, about a tenth).
-   Bounded gain: with no render loop RSS stays at 1.9 GB, so the churn adds the last 0.25 to 0.4 GB, and it also saves CPU.
+2. **Remove the rest of the BigInt churn** from the render loop (done in part, see "BigInt work removed" below): what is left is TextraTypist's `Font.calculateSize` and `drawGlyph`, about 1700 operations a frame at the title screen.
+   Caching the laid-out size of a label (upstream calls `calculateSize` from `TextraLabel.draw` every frame, with a TODO about it) or a fork of `Font` with the glyph as two `int`s would remove most of them (a fork of 5900 lines, so not done).
 3. **The two scratch fixes above** (`bufferData` size, `arraycopy` loop) for CPU and bandwidth, not memory.
 4. **Measure on a real iPhone** before choosing between 1 and 2.
 
 ## See also
-[[memory-budget]], [[open-issues]], [[e2e-tests]], [[webtest-harness]], [[bug-catalog]]
+[[bigint-churn]], [[memory-budget]], [[open-issues]], [[e2e-tests]], [[webtest-harness]], [[bug-catalog]]
