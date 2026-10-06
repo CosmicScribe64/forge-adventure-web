@@ -68,6 +68,7 @@ is filed.
 | EventBus finds handlers through annotations, so all game events were dropped | annotations are gone on TeaVM ([[reflection-on-teavm]]) |
 | `Progress` yielded after posting, which lost a wake-up and hung silently | yield before posting ([[green-threads]]) |
 | `DeflaterOutputStream` wrote a second GZIP trailer on close | finish once; keep the Java fallback |
+| The canvas was sized `100vh` and drawn at CSS pixels: on an iPhone it was blurry and the top and bottom were under the browser's bars (2026-10-06) | size from `visualViewport`, draw at the capped device ratio, and assert both in the e2e runs ([[display-and-viewport]]) |
 | `effects/demo.gif` became an 11488x6480 texture and crashed the tab | skip huge assets in webdata |
 | Serializer hooks were never made callable, so the streams silently used plain fields, giving empty save headers and cards without rules (R11) | a reflective lookup that finds nothing must fail loudly; test the round trip, not just the write ([[saves]]) |
 | The loader counted decoded bytes against `Content-Length`, so on GitHub Pages, which gzips app.js on the fly, it showed "62 / 32 MB" (user report, 2026-10-01) | count bytes before un-gzipping, ship app.js as `app.js.gz`, and count a file the browser decoded only once it completes; tested against a server that compresses like Pages |

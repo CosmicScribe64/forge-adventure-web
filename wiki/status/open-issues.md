@@ -43,10 +43,11 @@ the change.
   built ahead of time (the live part and most of the loader's churn, about 10 s of start), then the last 2145 BigInt operations a frame (a TextraTypist `Font` fork, or a cache of label sizes;
   CPU, and little memory by the measurement in [[bigint-churn]]), then a real iPhone measurement with Safari's Web Inspector, which this container cannot replace (the 0.37 GB base is
   software GL that an iPhone keeps in its GPU process). Whether iOS charges the tab less than Linux RSS is not known.
-- [ ] **The canvas is drawn at CSS pixels on a phone.** At 390x844 and device scale factor 3 the canvas backing store is
-  390x844, not 1170x2532, so text and sprites are upscaled by the browser. It costs no extra texture or framebuffer memory,
-  which is why the phone numbers equal the desktop ones, but it is soft. Whether to render at full resolution is a decision
-  ([[screen-layout]]).
+- [x] **The canvas was drawn at CSS pixels and sized with `100vh`** (fixed 2026-10-06). On a real iPhone in Chrome the picture was blurry and the top and bottom of the game sat under the browser's bars.
+  The canvas now follows the visible viewport and is drawn at the device pixel ratio, capped at 2 ([[display-and-viewport]]). What is still open is only what a real iPhone can show:
+  that the visible area is what `visualViewport` reports with the bars up and down, rotation, and whether 780x1688 buffers fit iOS's memory limit with the rest of the game (about 47 MB more GPU memory in Chromium's phone mode at the title).
+- [ ] **Audio is off by default on touch devices** (2026-10-06): a player with no saved volumes starts with music and sounds at 0 and raises them in Settings, far down the Adventure settings list.
+  There is no audio switch on the title screen, so someone who wants music has to find it. A touch laptop is muted as well. Revisit if a quick toggle is wanted.
 - [ ] **The full screen button still appears for 3 seconds after a tap near the top centre** on a touch screen. It is no longer shown
   unasked (2026-10-05: it sat over the top 7 pixels of New Game on a phone for the first seconds after loading and took the taps there),
   but the tap that shows it is usually a tap on that same button.

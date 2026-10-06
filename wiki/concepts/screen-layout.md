@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [NOTES.md#round-8, NOTES.md#round-10, NOTES.md#round-11, NOTES.md#review, PLAN.md#next]
-updated: 2026-10-01
+updated: 2026-10-06
 tags: [layout, ui, phones]
 ---
 
@@ -17,6 +17,9 @@ rotate.
   at startup, and `create()` waits for a real size.
 - Portrait windows get Forge's portrait layout.
 - A full-screen button, which also locks the orientation on Android.
+
+> [!note] Superseded in part
+> The canvas sizing here (`100vh`, drawn at CSS pixels) was replaced on 2026-10-06: the canvas follows the visible viewport and is drawn at the device pixel ratio, capped at 2. See [[display-and-viewport]].
 
 ## Extending the design size (Round 10, Forge patch)
 - `Scene.getViewWidth/Height` extend the design size to the screen's aspect. Map and world

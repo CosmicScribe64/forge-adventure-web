@@ -17,6 +17,7 @@ Every page, one line each. Read this first when answering a question, and start 
 - [[world-generation]]: WFC, from 44-70 s down to 6.6 s, with Forge patches, Web Workers and the wfc-golden check
 - [[memory-budget]]: where memory goes, leaks fixed, the phone target of under 1 GB, the WebKit attribution
 - [[startup-and-loading]]: from index.html's prefetch through WebLauncher and card loading to the title screen, and progress reporting
+- [[display-and-viewport]]: the visible-viewport sizing, the device pixel ratio (cap 2, measured), logical size versus backing store, input mapping, and audio off by default on touch devices
 - [[screen-layout]]: canvas sizing, extended design size, ViewLayout, resizing and rotation
 - [[build-pipeline]]: Docker, scripts, TeaVM environment variables, the 7.7 GB memory ceiling
 - [[classic-code-pruning]]: ReachReport and Unsupported, to cut Classic code from app.js

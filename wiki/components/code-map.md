@@ -12,7 +12,7 @@ This page shows where the project's own code lives and which concept each part s
 
 | Package / path | Contents | Concept |
 |---|---|---|
-| `forge/web/` | `WebLauncher` (entry point, counterpart of desktop `GameLauncher`), `WebDeviceAdapter`, `WebClipboard` | [[startup-and-loading]] |
+| `forge/web/` | `WebLauncher` (entry point, counterpart of desktop `GameLauncher`; also writes the first-run preferences: Adventure mode, and audio off on touch devices), `DensityGraphics` (canvas at the pixel ratio, logical size for the game), `WebDeviceAdapter`, `WebClipboard` | [[startup-and-loading]], [[display-and-viewport]] |
 | `forgeweb/compat/` | runtime helpers: `UiThread`, `MainThread*`, `FrameStats` | [[green-threads]] |
 | | `JdkCompat`, `GdxCompat`, `GameCompat` (CallRedirector targets) | [[web-layer-mechanisms]] |
 | | `Progress` (bar, and `[ttg]` stage marks), `LoadingScreen` | [[startup-and-loading]] |
@@ -26,7 +26,8 @@ This page shows where the project's own code lives and which concept each part s
 | `forgeweb/shim/` | T-prefixed XML DOM/transform/SAX (`TMiniDom`, `TMiniXml`), `TFontUIResource` | [[web-layer-mechanisms]] |
 | `forgeweb/stub/` | stand-ins: Guava `EventBus`, Sentry, tinylog, `Unsafe`, `ExceptionHandler`, `AssetsDownloader`, `FServerManager` | [[web-layer-mechanisms]], [[reflection-on-teavm]] |
 | `forgeweb/selftest/` | `SelfTest` | [[selftest]] |
-| `forgeweb/test/` | `WebTest` harness | [[webtest-harness]] |
+| `forgeweb/test/` | `WebTest` harness (commands include `display` and `console`) | [[webtest-harness]] |
+| `com/github/xpenatan/gdx/teavm/backends/web/WebInput` | gdx-teavm class shadow: touch and mouse coordinates divided by the game's logical size, not the backing store (four lines) | [[display-and-viewport]] |
 | `forgeweb/worker/` | `WfcWorker` (separate build) | [[world-generation]] |
 | `org/teavm/classlib/java/...` | classlib shadows: `lang.TObject` (borrowed monitors), `util.concurrent.*`, `util.concurrent.locks.*`, `util.zip.{TInflater,TDeflater,TDeflaterOutputStream,TZipFile}`, `io.TObject{Input,Output}Stream`+, `text.*`, `sql.*`, `net.*`, `awt.TFont` | [[web-layer-mechanisms]], [[green-threads]], [[saves]] |
 | `com/badlogic/gdx/graphics/g2d/NinePatch`, `com/ray3k/tenpatch/TenPatchDrawable` | library class shadows with the nearest-filtering inset (R11) | [[screen-layout]] |

@@ -1,7 +1,7 @@
 ---
 type: entity
 sources: [NOTES.md, web/build.gradle.kts]
-updated: 2026-10-01
+updated: 2026-10-06
 tags: [gdx-teavm, upstream]
 ---
 
@@ -28,6 +28,8 @@ shrinks** ([[memory-budget]]).
 Details and status are in [[bug-catalog]].
 
 ## Limitations
+- `usePhysicalPixels` draws at the device ratio but then reports the physical size as `Gdx.graphics.getWidth()` (and its input divides by the backing store), so a layout that reads the width shrinks by the ratio.
+  `DensityGraphics` and a `WebInput` shadow keep the game in CSS pixels instead ([[display-and-viewport]]). Worth reporting upstream.
 - `@Emulate` doesn't pick up classes from this project.
 - The dev server (`gdx_teavm_web_js_run`) seems to use fast analysis, so it is unusable here
   ([[build-pipeline]]).

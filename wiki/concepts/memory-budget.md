@@ -48,8 +48,9 @@ the WebKit RSS varies by a few hundred MB between runs, so it shows as a range o
 | GPU process RSS (software GL) | 228 to 242 MB | 225 MB | in the web process | 384 MB | 319 MB | in the web process |
 
 - The Chromium phone numbers equal the desktop ones within a few MB (RSS rise from menu to overworld: 112 MB on the phone,
-  117 MB on desktop in the same run). The game draws into a canvas sized in CSS pixels, 390x844 on the phone, whatever the device scale
-  factor (3), so a phone costs no extra framebuffer or texture memory. `scripts/e2e-newgame phone` has its own limit block
+  117 MB on desktop in the same run). These numbers are from 2026-10-05, when the game drew into a canvas of CSS pixels (390x844 on the phone, whatever the device scale
+  factor of 3). Since 2026-10-06 it draws at a pixel ratio of 2 (780x1688), which adds about 47 MB to the GPU process at the title and 7 MB at the overworld and nothing
+  measurable to the renderer ([[display-and-viewport]]). `scripts/e2e-newgame phone` has its own limit block
   set 5 to 8 percent above the heap, texture and pixmap numbers and 110 MB above RSS, as the desktop one is ([[webtest-harness]]).
 - WebKit (Playwright's WPE build 26.0 on Linux, the iPhone 13 descriptor) offers no JS heap number. Its web process is
   three times Chromium's renderer, and in this port the software GL runs inside it, so a blank page with one WebGL canvas
@@ -94,7 +95,7 @@ Full detail, method and numbers are in [[webkit-memory]]. Summary, from the same
 | JS heap used | 280 MB | 280 MB |
 | ArrayBuffer backing stores | 310 MB | 308 MB |
 
-Screen size hardly matters: the canvas is drawn at CSS pixels (390x844 even at 3x), so the cost
+Screen size hardly matters (as of 2026-10-05 the canvas was drawn at CSS pixels, 390x844 even at 3x, and since 2026-10-06 at 780x1688, see [[display-and-viewport]]), so the cost
 is data, not pixels. Phones kill the tab at this size ([[open-issues]]). Candidates to check
 first: the app.js Blob URL is never revoked (a 76 MB copy), the startup pack and card zip stay
 in memory after startup, and card scripts load eagerly.
@@ -278,8 +279,9 @@ It is a diagnostic, not part of the build.
 | Canvas backbuffer (estimated, double buffered plus depth) | 10.5 MB (1280x720) | 3.8 MB (390x844) | 10.5 MB |
 | GPU process RSS | 449 MB | 433 MB | 597 MB |
 
-The canvas is drawn at CSS pixels, so a phone at a device pixel ratio of 3 costs less than the
-desktop backbuffer. Drawing at native resolution would be 1170x2532 and about 36 MB.
+> [!note] Superseded
+> As of 2026-10-05 the canvas was drawn at CSS pixels, so a phone cost less than the desktop backbuffer. On 2026-10-06 the game started drawing at a ratio of 2 (780x1688, 5.3 MB a buffer);
+> native resolution would be 1170x2532 and about 12 MB a buffer. Measured GPU process growth is in [[display-and-viewport]].
 
 Where the texture bytes come from (menu, desktop; creation stacks plus matching image sizes to
 files in `forge/forge-gui/res`):

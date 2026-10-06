@@ -1,7 +1,7 @@
 ---
 type: concept
 sources: [scripts/e2e-boot, scripts/e2e-newgame, scripts/e2e-cycle, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/webtest.py, .github/workflows/ci.yml, .github/workflows/pages.yml, web/html/index.html]
-updated: 2026-10-05
+updated: 2026-10-06
 tags: [testing, phones, webkit, releases]
 ---
 
@@ -16,8 +16,8 @@ check are in [[memory-budget]].
 
 | Script | What it checks | Run time on top of a build |
 |---|---|---|
-| `scripts/e2e-boot` | the loading bar reaches 100 percent, the title screen comes up, no unexpected console errors, and on touch devices nothing but the game is under the top centre of the page | 26 to 32 s |
-| `scripts/e2e-newgame` | boot, then a new game (seed 1) played to the overworld with real taps or clicks on New Game and Start, no unexpected errors, no file of 1 MB or more downloaded twice, and memory limits at the menu and the overworld (not in WebKit) | 58 to 68 s |
+| `scripts/e2e-boot` | the loading bar reaches 100 percent, the title screen comes up, no unexpected console errors, and on touch devices nothing but the game is under the top centre of the page; the display checks below, a resize to a smaller viewport and a tap on New Game after it; and the audio check | 28 to 34 s |
+| `scripts/e2e-newgame` | boot, then a new game (seed 1) played to the overworld with real taps or clicks on New Game and Start, no unexpected errors, no file of 1 MB or more downloaded twice, and memory limits at the menu and the overworld (not in WebKit); the display checks at the menu (also after a resize to a smaller viewport and back) and the overworld; the audio check | 58 to 68 s |
 | `scripts/e2e-cycle` | three new games in one session; pixmap heap, textures, JS heap and RSS do not grow ([[webtest-harness]]) | 218 to 224 s on desktop |
 
 ## Devices
@@ -77,6 +77,21 @@ Loaded from https://cosmicscribe64.github.io/forge-adventure-web/ with the same 
 
 The WebKit web process of 0.1.1 is 2701 MB at the title screen and 3454 MB at the overworld (textures 295 and 347.5 MB), against 1.9 GB and
 2.3 to 2.5 GB now. This machine has no memory limit, so neither crashes here; a phone has one.
+
+## Display and audio checks (2026-10-06)
+The webtest step `display-check [cap]` ([[webtest-harness]]) asserts, for the page as it is at that moment:
+the canvas's CSS box is the visible viewport (`visualViewport`, else the window) and sits at the origin;
+its backing store is that size times `max(1, min(devicePixelRatio, cap))` (cap 2 unless given), which is computed in the test, not read from the page; the game's own size (`api display`, the new
+harness command) is the CSS size and its framebuffer is the backing store; the page cannot scroll (`scrollTo(0, 100)` leaves `scrollY` at 0, and the document is no larger than the window); and nothing but the canvas
+is at the four corners. It prints one line, for example `display: css 390x844 backing 780x1688 ratio 2.0 dpr 3 game 390x844 (buffer 780x1688)`.
+`scripts/e2e-common` gives each device a viewport and a smaller one (`SMALL_W`, `SMALL_H`: desktop 1280x720 and 1000x600, phone 390x844 and 390x700, iPhone 390x664 and 390x560; 844 to 700 is a phone's browser bars appearing).
+- `e2e-boot` checks at the title screen, resizes to the small viewport, checks again, and taps New Game on the resized screen (the tap maps the game's own button position to the page, so reaching the next screen proves taps land after a resize).
+- `e2e-newgame` checks at the menu, after resizing to the small viewport, after resizing back, and at the overworld.
+- `E2E_QUERY=pixelratio=3 DISPLAY_CAP=3` runs a scenario with another pixel ratio, for measuring ([[display-and-viewport]]).
+- The step `audio-check none|playing` counts the Howler sounds that are playing (`Howler._howls`). On `phone` and `iphone` the scenarios assert none after the first tap and at the overworld (a fresh profile has audio off, [[display-and-viewport]]),
+  and on desktop `playing` once after the first tap (headless Chromium allows autoplay, so music starts at the title).
+Run on 2026-10-06 against the minified build, all three devices pass; the display lines were 1280x720 and 1000x600 (ratio 1), 390x844 and 390x700 at 780x1688 and 780x1400 (phone), 390x664 and 390x560 at 780x1328 and 780x1120 (iPhone).
+What these cannot show: the clipping itself. Playwright's phone modes have no browser bars, so the visible viewport is the whole window; the resize check is the stand-in for the bars appearing.
 
 ## Findings from the WebKit and phone runs
 

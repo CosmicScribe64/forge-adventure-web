@@ -13,7 +13,7 @@ There are two layers for driving the real game.
 It runs Playwright with headless Chromium in the `mcr.microsoft.com/playwright/python` container
 against `scripts/serve-web`. Steps: `wait`, `click`, `key`, `hold <key> <s>`, `type`, `shot`,
 `api`, `js`, `reload`, `resize <w> <h>`, `heap` (memory accounting, see [[memory-budget]]),
-`profile`, `stacks` (sampling for hangs), `exceptions [n] [file] [match] [..]`, `until`.
+`display-check [cap]` and `audio-check none|playing` ([[e2e-tests]]), `profile`, `stacks` (sampling for hangs), `exceptions [n] [file] [match] [..]`, `until`.
 `--browser chromium|webkit|firefox`, `--device "iPhone 13"` and `--phone` pick the engine and the device, and the step `tap <button>` presses a button with real
 input; see "Devices" below. `--interactive <cmdfile>` keeps a session running. `--init-script <file>` runs a JavaScript file in the page before its own scripts (used for a WebGL memory hook, [[memory-budget]]). Steps are split at semicolons, so a `js` step can't contain one.
 Round 11 changes: `exceptions` matches the exception message as well as function names (for
@@ -118,7 +118,8 @@ with the dispose restored.
 ## 2. `forgeweb.test.WebTest` (inside the game)
 A harness compiled into the game, **only active with `?test`** (PLAN Phase 7). It is driven by
 `api` commands and returns JSON. Commands include `state`, `moveto`, `goto` and `interact <POI>`, `stop`, `click`, `where <button>`, `dismiss`,
-`layout`, `duel`, `ok`, `cancel`, `play` and `select <card>`, `player`, and `attackall`. Two are for the picture caches:
+`layout`, `duel`, `ok`, `cancel`, `play` and `select <card>`, `player`, and `attackall`. `display` returns the game's size and the framebuffer's (`{w, h, bw, bh}`), and
+`console <text>` runs a command of Forge's Adventure console (the name with a space takes quotes: `console spawn enemy "Clay Golem"`, then `goto Clay Golem` reaches the VS screen and a duel from the overworld). Two are for the picture caches:
 `addcards <n>` puts n different cards into the collection (so the deck editor has a long list), and `fsstats` prints the
 files, KB and drops of the capped picture folder. The webtest step `wheel <x> <y> <dy> [<n>]` turns the mouse wheel
 (a `WheelEvent` dispatched from a `js` step scrolled Forge's lists unreliably; Playwright's real one works).
