@@ -180,6 +180,8 @@ public class TDeflaterOutputStream extends FilterOutputStream {
 
     @JSBody(params = {"data", "raw", "done", "failed"}, script = ""
             + "new Response(new Blob([data]).stream().pipeThrough(new CompressionStream(raw ? 'deflate-raw' : 'deflate')))"
-            + ".arrayBuffer().then(function(b) { done(new Int8Array(b)); }, function(e) { failed(String(e)); });")
+            // Long closure names: a minified build renames "failed" to "e", so a closure parameter "e" would hide it
+            // (see web/tools/test_jsbody_names.py).
+            + ".arrayBuffer().then(function(buffer) { done(new Int8Array(buffer)); }, function(reason) { failed(String(reason)); });")
     private static native void compressImpl(Int8Array data, boolean raw, Done done, Failed failed);
 }

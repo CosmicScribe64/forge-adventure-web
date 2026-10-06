@@ -70,7 +70,9 @@ final class UserDataStore {
     @JSBody(script = "var f = window.forgeUserFiles; return f ? Object.keys(f).join('\\n') : null;")
     private static native String storedPaths();
 
-    @JSBody(params = "path", script = "var f = window.forgeUserFiles; var b = f && f[path];"
-            + " if (!b) return null; delete f[path]; return new Int8Array(b.buffer, b.byteOffset, b.length);")
+    // Long variable names on purpose, see Http.takePrefetched.
+    @JSBody(params = "path", script = "var storedTable = window.forgeUserFiles; var storedBody = storedTable && storedTable[path];"
+            + " if (!storedBody) return null; delete storedTable[path];"
+            + " return new Int8Array(storedBody.buffer, storedBody.byteOffset, storedBody.length);")
     private static native Int8Array takeStored(String path);
 }

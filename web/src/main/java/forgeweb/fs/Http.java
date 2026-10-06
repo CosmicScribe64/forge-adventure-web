@@ -58,8 +58,14 @@ final class Http {
         return new String(getBytes(url), StandardCharsets.UTF_8);
     }
 
-    /** Downloaded by web/html/index.html while app.js loaded; each is handed over once. */
-    @JSBody(params = "url", script = "var p = window.forgePrefetch; var b = p && p[url];"
-            + " if (!b) return null; delete p[url]; return new Int8Array(b.buffer, b.byteOffset, b.length);")
+    /**
+     * Downloaded by web/html/index.html while app.js loaded; each is handed over once. The script's own variables have
+     * long names on purpose: a minified build renames the parameter ("url") to a short name like "b", and a variable
+     * "b" in the script would then replace it, so that "delete p[url]" turned the 22 MB array into a key (a string of
+     * 22 million numbers, 0.7 GB of temporary strings in WebKit) and never removed the entry.
+     */
+    @JSBody(params = "url", script = "var prefetchTable = window.forgePrefetch; var prefetchBody = prefetchTable && prefetchTable[url];"
+            + " if (!prefetchBody) return null; delete prefetchTable[url];"
+            + " return new Int8Array(prefetchBody.buffer, prefetchBody.byteOffset, prefetchBody.length);")
     private static native Int8Array takePrefetched(String url);
 }
