@@ -50,7 +50,10 @@ jobs:
 
       - name: Unpack the built site
         if: inputs.site_artifact != ''
-        run: mkdir site && tar -xf site-download/artifact.tar -C site
+        run: |
+          mkdir site
+          if ls site-download/*.tar >/dev/null 2>&1; then tar -xf site-download/*.tar -C site; else cp -R site-download/. site/; fi
+          ls site | head
 
       - name: Boot an iPhone simulator
         run: |
@@ -69,6 +72,11 @@ jobs:
           xcrun simctl list devices | grep "$UDID"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          # Safari's first-run tip ("View Bookmarks, Share Menu, and Open Tabs") covers the bottom fifth of every
+          # screenshot; try to switch tips off (TipKit's testing switch), and start Safari once so the tip is shown and gone.
+          xcrun simctl spawn "$UDID" defaults write com.apple.mobilesafari com.apple.TipKit.HideAllTipsForTesting -bool YES || true
+          xcrun simctl launch "$UDID" com.apple.mobilesafari -com.apple.TipKit.HideAllTipsForTesting YES || true
+          sleep 10
 
       - name: Run the game in Mobile Safari
         run: |
@@ -99,7 +107,10 @@ jobs:
 
       - name: Unpack the built site
         if: inputs.site_artifact != ''
-        run: mkdir site && tar -xf site-download/artifact.tar -C site
+        run: |
+          mkdir site
+          if ls site-download/*.tar >/dev/null 2>&1; then tar -xf site-download/*.tar -C site; else cp -R site-download/. site/; fi
+          ls site | head
 
       - name: Let the emulator use KVM
         run: |

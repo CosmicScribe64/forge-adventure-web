@@ -152,7 +152,8 @@
         let d = null, vsShots = 0;
         for (let i = 0; i < 8 && !d; i++) {
           await cmd("dismiss"); await sleep(500);
-          const r = await cmd("goto Clay Golem"); log("goto: " + JSON.stringify(r).slice(0, 100));
+          let r = await cmd("goto Clay Golem"); log("goto: " + JSON.stringify(r).slice(0, 100));
+          if (r.error) { await cmd("console spawn enemy \"Clay Golem\""); await sleep(1000); r = await cmd("goto Clay Golem"); log("goto again: " + JSON.stringify(r).slice(0, 100)); }
           for (let j = 0; j < 12 && !d; j++) {
             await sleep(1500);
             const x = await cmd("duel");
