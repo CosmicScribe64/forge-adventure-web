@@ -47,6 +47,10 @@ public class HowlMusic implements Music {
             "  howl._forgeWait = true;" +
             "  howl.once('unlock', function() { howl._forgeWait = false; if (howl._forgeWant && howl._forgeAlive) howl.play(); });" +
             "});" +
+            // A play() that was still waiting for the data when pause() or stop() came starts afterwards: pause it again.
+            "howl.on('play', function() { if (!howl._forgeWant) howl.pause(); });" +
+            // A track that ended on its own is no longer wanted (a looping one starts again by itself).
+            "howl.on('end', function() { if (!howl._loop) howl._forgeWant = false; });" +
             "return howl;")
     private static native Howl createStreaming(ArrayBufferView arrayBufferView);
 
@@ -59,8 +63,9 @@ public class HowlMusic implements Music {
 
     @Override
     public void play() {
+        boolean started = howl.isPlaying();
         setWanted(howl, true);
-        if(!isPlaying()) {
+        if(!started) {
             howl.play();
         }
     }
@@ -79,8 +84,14 @@ public class HowlMusic implements Music {
 
     @Override
     public boolean isPlaying() {
-        return howl.isPlaying();
+        // forgeweb: a track that was asked to play but is still loading counts as playing. Forge's AudioMusic.pause()
+        // does nothing for a track that is not playing, so a track shelved within a second or two of starting
+        // (WebKit takes that long to load a data URI) was never paused and started under the next track.
+        return howl.isPlaying() || isWanted(howl);
     }
+
+    @JSBody(params = { "howl" }, script = "return !!howl._forgeWant;")
+    private static native boolean isWanted(Howl howl);
 
     @Override
     public void setLooping(boolean isLooping) {
@@ -110,8 +121,17 @@ public class HowlMusic implements Music {
 
     @Override
     public void setPosition(float position) {
-        howl.setSeek(position);
+        seekNode(howl, position);
     }
+
+    // forgeweb: Howler's seek() on a playing HTML5 sound pauses it and starts it again from a timer (setTimeout 0).
+    // Forge's AudioMusic.pause() calls setPosition() and then pause(), so the timer undid the pause and a shelved
+    // track kept playing under the next one. Set the element's position directly and leave the play state alone.
+    @JSBody(params = { "howl", "position" }, script = "" +
+            "var sound = howl._sounds[0];" +
+            "if (!sound || !sound._node || howl._state != 'loaded' || isNaN(sound._node.duration)) { howl.seek(position); return; }" +
+            "sound._seek = position; sound._ended = false; sound._node.currentTime = position;")
+    private static native void seekNode(Howl howl, float position);
 
     @Override
     public float getPosition() {

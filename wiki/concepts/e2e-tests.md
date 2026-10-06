@@ -94,6 +94,17 @@ The WebKit web process of 0.1.1 is 2701 MB at the title screen and 3454 MB at th
   URI, which WebKit decodes in the page and never sends to the network process, had no failure (6 runs, 1800 loads). `HowlMusic` now
   builds a `data:` URI (a 3.7 MB track becomes 5 MB of string, freed at `dispose()`), so there is nothing to revoke. After the change 20 iPhone boots
   in a row passed. The cause inside WebKit (probably its GStreamer media loader cancelling the request) was not found.
+- **Music check, run by hand** (2026-10-06, not a script in the repo). The page's own state is the evidence, because headless browsers
+  can't be heard: an init script hooks `Howl.prototype` (`init`, `play`, `pause`, `stop`, `unload`, `volume`) and keeps every HTML5 Howl, and
+  webtest `expect` steps read them. On desktop, phone and iPhone mode (minified site build, no console error in any run) the title
+  music is a `data:` element that is running and whose `seek()` advances by 3 s in 4 s after the first tap; seeking to 1.5 s before the end
+  makes the game dispose that track (stopped, unloaded, its data string dropped) and start the next one, which advances; a looping Howl on
+  the same data URI wraps from the end back to the start; moving the music volume slider in the settings (desktop only, the slider is
+  found by scrolling) reaches the Howl as `volume(0.5)`; starting a new game unloads the menu track and plays the cave track alone; leaving
+  the cave through the portal pauses the cave track (shelved, not playing), unloads the older shelved one and plays the overworld track.
+  Not covered: a town or a duel (the harness has no command to enter one), real iOS Safari's gesture rule (the unlock path ran only
+  where WebKit let the first play through), and anything audible. Every one of the 79 audio files the game ships (`forge/res`, 37 in music
+  folders) is an mp3 (56 with an ID3 tag, 23 starting at a frame header), and the first-bytes check names `mp3` for all of them.
 - **WebKit's memory** is about three times Chromium's ([[open-issues]]).
 - **The page's full screen button covered the top of New Game on a phone.** On a touch screen the button was shown for the first
   seconds after loading at the top centre, 34x28 pixels from 4 pixels down, and the title screen's New Game button starts about

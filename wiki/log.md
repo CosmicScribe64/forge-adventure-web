@@ -413,3 +413,8 @@ Next steps:
 - Reproduced in a standalone page with real Howler (300 create and dispose cycles of mp3 tracks, 1 to 5 failures a run). Not the cause, by A/B runs: Howler's `src` swap on unload, the gap between tracks, a MIME type on the Blob, fetching the URL first, holding the Blob or the elements so nothing is collected, the unlock pool; a plain `http:` URL fails the same way. A `data:` URI had no failure in 6 runs (1800 loads).
 - `HowlMusic` now gives Howler a `data:` URI (no Blob, nothing to revoke) and picks Howler's `format` from the file's first bytes instead of always trying `ogg` first (Safari without Vorbis would have refused every mp3). Verified: 20 iPhone boots in a row, desktop and phone boots, the iPhone new game, `scripts/unit-test` and `scripts/selftest`. Updated [[bug-catalog]], [[e2e-tests]], [[code-map]], [[memory-budget]].
   Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.
+
+## [2026-10-06] test | Music with the data URI, and a shelving bug
+- Checked from the page, in desktop, phone and iPhone mode on the minified site build, that music plays with the `data:` URI (see [[e2e-tests]]): playing, `seek()` advancing, track end and track switches, volume, a looping Howl, and the format of every shipped audio file (79 mp3 files).
+- Found a bug that the live site has too: shelved tracks kept playing under the next one, because Howler's `seek()` restarts a playing HTML5 sound from a timer and Forge's pause hack seeks first, and because a track shelved while still loading was never paused. Fixed in `HowlMusic` (`setPosition`, `isPlaying`, a `play` listener). Updated [[bug-catalog]], [[code-map]].
+  Pages read: the same ones plus `wiki/SCHEMA.md`. Not edited: NOTES.md, PLAN.md, README.md.
