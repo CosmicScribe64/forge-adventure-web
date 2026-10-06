@@ -74,7 +74,8 @@ def ios_webcontent():
 
 def android_chrome():
     """Chrome's processes with their PSS in MB from dumpsys meminfo, the renderer (sandboxed process) first."""
-    out = sh(["adb", "shell", "dumpsys", "meminfo"]).stdout
+    r = sh(["adb", "shell", "dumpsys", "meminfo"])
+    out = r.stdout
     procs = []
     in_pss = False
     for line in out.splitlines():
@@ -87,7 +88,13 @@ def android_chrome():
                 procs.append({"pss_mb": round(int(m.group(1).replace(",", "")) / 1024), "name": m.group(2), "pid": int(m.group(3))})
             elif not m and line.strip() == "":
                 break
-    chrome = "\n".join(l for l in out.splitlines() if "chrome" in l or "Total PSS" in l or "Total RAM" in l)
+    ps = sh("adb shell 'ps -A -o PID,RSS,NAME | grep -i chrome'").stdout
+    chrome = "dumpsys rc %s, %d bytes, stderr %s\n" % (r.returncode, len(out), r.stderr[:200]) + "\n".join(l for l in out.splitlines() if "chrome" in l or "Total PSS" in l) + "\nps (pid, RSS KB, name):\n" + ps
+    if not procs:  # no PSS list: fall back to the RSS of the processes
+        for l in ps.splitlines():
+            m = re.match(r"\s*(\d+)\s+(\d+)\s+(\S+)", l)
+            if m:
+                procs.append({"pss_mb": round(int(m.group(2)) / 1024), "name": m.group(3), "pid": int(m.group(1)), "rss": True})
     return sorted(procs, key=lambda p: ("sandboxed" not in p["name"], -p["pss_mb"])), chrome
 
 

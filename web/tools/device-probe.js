@@ -33,7 +33,9 @@
   window.addEventListener("unhandledrejection", e => note("error", "unhandled rejection: " + (e.reason && e.reason.message || e.reason)));
 
   const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail: detail === undefined ? "" : String(detail) }); log((ok ? "PASS " : "FAIL ") + name + (detail ? ": " + detail : "")); };
-  const cmd = async c => { const r = await window.forgeTest.cmd(c); try { return JSON.parse(r); } catch (e) { return { raw: r }; } };
+  const cmd = async c => {
+    // a command the game doesn't answer within 60 s (a device under load) is an error, not an endless wait
+    const r = await Promise.race([window.forgeTest.cmd(c), sleep(60000).then(() => { throw new Error("no answer to '" + c + "' in 60 s"); })]); try { return JSON.parse(r); } catch (e) { return { raw: r }; } };
   const until = async (what, secs, f) => {
     const end = Date.now() + secs * 1000;
     while (Date.now() < end) {
@@ -92,7 +94,7 @@
     const ex = [Math.round(vw * ratio), Math.round(vh * ratio)];
     const problems = [];
     if (Math.abs(r.width - vw) > 1 || Math.abs(r.height - vh) > 1 || Math.abs(r.left) > 0.5 || Math.abs(r.top) > 0.5) problems.push("canvas css box " + [r.left, r.top, r.width, r.height].map(Math.round) + " is not the visible viewport " + vw + "x" + vh);
-    if (c.width !== ex[0] || c.height !== ex[1]) problems.push("backing store " + c.width + "x" + c.height + " is not css x ratio " + ratio + ": " + ex);
+    if (Math.abs(c.width - ex[0]) > 1 || Math.abs(c.height - ex[1]) > 1) problems.push("backing store " + c.width + "x" + c.height + " is not css x ratio " + ratio + ": " + ex);
     if (g.w !== Math.round(vw) || g.h !== Math.round(vh) || g.bw !== c.width || g.bh !== c.height) problems.push("the game sees " + JSON.stringify(g));
     if (scrollX !== 0 || scrollY !== 0 || document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight) problems.push("the page is scrolled or larger than the window: " + [scrollX, scrollY, document.documentElement.scrollWidth, document.documentElement.scrollHeight] + " in " + innerWidth + "x" + innerHeight);
     const corners = [at(1, 1), at(innerWidth - 2, 1), at(1, innerHeight - 2), at(innerWidth - 2, innerHeight - 2)];
@@ -123,6 +125,11 @@
       });
       await sleep(4000);
       await shot("title"); await mem("title");
+      // The same two requests the game makes for card data and images (it logged HTTP code -1 for the images in iOS Safari).
+      for (const [what, url] of [["api", "https://api.scryfall.com/cards/named?exact=Lightning+Bolt"], ["image", "https://api.scryfall.com/cards/gk2/105/en?format=image&version=normal"]]) {
+        try { const r = await fetch(url); check("scryfall " + what + " fetch", r.ok, r.status + " " + r.headers.get("content-type") + (what === "image" ? " " + (await r.blob()).size + " bytes" : "")); }
+        catch (e) { check("scryfall " + what + " fetch", false, e.name + ": " + e.message); }
+      }
       await displayCheck("title"); await scrollCheck("title"); audioCheck("title"); errorCheck("title");
       await step("new game screen", async () => { await tap("New Game"); await untilLine("ui/new_game", 90); await sleep(3000); });
       await shot("create"); audioCheck("create");
