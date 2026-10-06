@@ -433,3 +433,9 @@ Next steps:
   `scripts/build-web` now writes `git describe --tags --always` into `index.html` as
   `window.forgeVersion`, and `getVersionString()` returns it (a release shows its tag, CI's shallow
   clone shows the commit, and a page not built by `build-web` shows "dev").
+
+## [2026-10-06] fix | Retry a browser that crashes while starting
+- The Pages run for `f01b9c0` stopped before deploying because Chromium's headless shell crashed
+  with SIGSEGV while launching for the phone boot test, before any page existed. Every other
+  run passed, including the phone new-game test. `webtest.py` now tries the browser launch, and
+  only the launch, a second time.

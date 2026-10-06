@@ -377,13 +377,23 @@ def main():
 
     with sync_playwright() as p:
         chromium = args.browser == "chromium"
-        if chromium:
-            browser = p.chromium.launch(args=[
-                "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
-                "--enable-webgl", "--disable-dev-shm-usage",
-            ])
-        else:
-            browser = getattr(p, args.browser).launch()
+
+        def launch():
+            if chromium:
+                return p.chromium.launch(args=[
+                    "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
+                    "--enable-webgl", "--disable-dev-shm-usage",
+                ])
+            return getattr(p, args.browser).launch()
+
+        # The browser itself sometimes crashes while starting, before any page exists (a SIGSEGV of Chromium's
+        # headless shell on GitHub's runners). That says nothing about the game, so the launch, and only the
+        # launch, is tried a second time.
+        try:
+            browser = launch()
+        except Exception as e:
+            print(f"browser launch failed, trying once more: {str(e).splitlines()[0]}", flush=True)
+            browser = launch()
         if args.device:
             ctx = dict(p.devices[args.device])
         elif args.phone:
