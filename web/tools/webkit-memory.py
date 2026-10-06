@@ -6,6 +6,8 @@ Prints, for one page load of the game in the iPhone 13 profile:
   - the RSS and VmHWM when the title screen is up,
   - with --idle N, the RSS once a second for N seconds at the title screen (minimum, median, maximum), which is a
     sawtooth: the JavaScript heap grows until JavaScriptCore collects it (wiki/concepts/memory-budget.md),
+  - with --newgame, the same after starting a new game (seed 1): the RSS and VmHWM at the overworld and, with --idle N, the
+    minimum, median and maximum of N more seconds there,
   - the anonymous mappings of the process by size, from /proc/<pid>/smaps.
 JavaScriptCore options reach the web process through the environment, for example JSC_useJIT=0, JSC_forceRAMSize=1610612736,
 or JSC_logGC=basic together with DEBUG=pw:browser (the collector's log, with heap sizes, goes to the driver's stderr).
@@ -40,6 +42,27 @@ def web_pid():
     return best, best_rss
 
 
+def hwm_mb(pid):
+    return int(re.search(r"VmHWM:\s+(\d+)", open(f"/proc/{pid}/status").read()).group(1)) / 1024
+
+
+def idle_series(page, seconds):
+    series = []
+    for _ in range(seconds):
+        page.wait_for_timeout(1000)
+        series.append(round(web_pid()[1]))
+    ordered = sorted(series)
+    return "min %d, median %d, max %d MB; every 5th second: %s" % (ordered[0], ordered[len(ordered) // 2], ordered[-1], series[::5])
+
+
+def game_state(page):
+    try:
+        raw = page.evaluate("() => window.forgeTest ? Promise.race([window.forgeTest.cmd('state'), new Promise(r => setTimeout(() => r(null), 5000))]) : null")
+        return json.loads(raw).get("scene") if raw else None
+    except Exception:
+        return None
+
+
 def anon_summary(pid):
     buckets, size, perm = collections.defaultdict(lambda: [0.0, 0]), 0, ""
     for line in open(f"/proc/{pid}/smaps"):
@@ -60,6 +83,7 @@ def main():
     ap.add_argument("url", help="the site root, for example http://host.docker.internal:8097/forge-adventure-web/")
     ap.add_argument("--idle", type=int, default=0, help="seconds to sample the RSS at the title screen")
     ap.add_argument("--device", default="iPhone 13")
+    ap.add_argument("--newgame", action="store_true", help="then start a new game and measure at the overworld too")
     args = ap.parse_args()
     url = args.url.rstrip("/") + "/index.html?test=1&seed=1"
     with sync_playwright() as p:
@@ -91,15 +115,22 @@ def main():
             except Exception:
                 pass
         pid, rss = web_pid()
-        hwm = int(re.search(r"VmHWM:\s+(\d+)", open(f"/proc/{pid}/status").read()).group(1)) / 1024
-        print("title screen at %.0f s: rss %.0f MB, VmHWM %.0f MB" % (time.time() - t0, rss, hwm))
+        print("title screen at %.0f s: rss %.0f MB, VmHWM %.0f MB" % (time.time() - t0, rss, hwm_mb(pid)))
         if args.idle:
-            series = []
-            for _ in range(args.idle):
+            print("title idle %d s: %s" % (args.idle, idle_series(page, args.idle)))
+        if args.newgame:
+            page.evaluate("() => window.forgeTest.cmd('click New Game')")
+            page.wait_for_timeout(5000)
+            page.evaluate("() => window.forgeTest.cmd('click start')")
+            t1 = time.time()
+            while time.time() - t1 < 400 and game_state(page) not in ("TileMapScene", "GameScene"):
                 page.wait_for_timeout(1000)
-                series.append(round(web_pid()[1]))
-            ordered = sorted(series)
-            print("idle %d s: min %d, median %d, max %d MB; every 5th second: %s" % (args.idle, ordered[0], ordered[len(ordered) // 2], ordered[-1], series[::5]))
+            page.wait_for_timeout(10000)
+            pid, rss = web_pid()
+            print("overworld at %.0f s: scene %s, rss %.0f MB, VmHWM %.0f MB" % (time.time() - t0, game_state(page), rss, hwm_mb(pid)))
+            if args.idle:
+                print("overworld idle %d s: %s" % (args.idle, idle_series(page, args.idle)))
+            print("VmHWM at the end: %.0f MB" % hwm_mb(web_pid()[0]))
         print("anonymous mappings (rss MB, count) by size:", anon_summary(pid))
         browser.close()
 

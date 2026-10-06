@@ -37,7 +37,8 @@ val unit = sourceSets.create("unit") {
     java.srcDir("src/unit/java")
 }
 tasks.named<JavaCompile>("compileUnitJava") {
-    include("forgeweb/fs/FileStore.java", "forgeweb/fs/Node.java", "forgeweb/fs/FakeHost.java", "forgeweb/fs/*Test.java")
+    include("forgeweb/fs/FileStore.java", "forgeweb/fs/Node.java", "forgeweb/fs/FakeHost.java", "forgeweb/fs/*Test.java",
+        "forgeweb/shim/FibHash.java", "forgeweb/shim/FibHashTest.java")
 }
 dependencies {
     "unitImplementation"(platform("org.junit:junit-bom:5.11.4"))
@@ -143,11 +144,57 @@ tasks.matching { it.name == "gdx_teavm_web_js_build" }.configureEach {
         }
         val app = layout.buildDirectory.file("$dir/webapp/app.js").get().asFile
         val tmp = File(app.path + ".tmp")
+        // BigInt allocation, the other half of this patch. TeaVM 0.15 makes every Java long a BigInt, and every
+        // long operation allocates. TeaVM writes each long literal in the code as a call (Long_fromInt(15), or
+        // Long_create(lo, hi) for a literal that does not fit an int) and builds BigInt(count) for each shift,
+        // and the game ran about 3300 such constant conversions a frame at the title screen (a third of all
+        // BigInt allocations, wiki/analyses/webkit-memory.md), mostly in TextraTypist's glyph arithmetic.
+        // JavaScriptCore keeps that garbage until it collects, which on a phone is the memory sawtooth. The
+        // patch writes the literals as BigInt literals (15n, made once when the script is parsed) and takes
+        // the 64 shift counts from a table. Same values, no allocation. SelfTest checks the long arithmetic.
+        // The names are found by body, like the fix above (a minified build renames them).
+        val fromIntDef = Regex("""([A-Za-z_$][\w$]*)\s*=\s*val\s*=>\s*BigInt\.asIntN\(64,\s*BigInt\(val\s*\|\s*0\)\)""")
+        val createDef = Regex("""([A-Za-z_$][\w$]*)\s*=\s*\(lo,\s*hi\)\s*=>\s*BigInt\.asIntN\(64,\s*BigInt\.asUintN\(64,\s*BigInt\(lo\)\)""")
+        var fromIntName: String? = null
+        var createName: String? = null
+        app.bufferedReader().use { input ->
+            for (line in input.lineSequence()) {
+                if (fromIntName == null) fromIntDef.find(line)?.let { fromIntName = it.groupValues[1] }
+                if (createName == null) createDef.find(line)?.let { createName = it.groupValues[1] }
+                if (fromIntName != null && createName != null) break
+            }
+        }
+        val intName = fromIntName
+        val longName = createName
+        if (intName == null || longName == null) {
+            throw GradleException("$app: TeaVM's Long_fromInt or Long_create changed; update the BigInt literal patch in build.gradle.kts")
+        }
+        val intLiteral = Regex("""(?<![\w$.])${Regex.escape(intName)}\((-?\d{1,10})\)""")
+        val createLiteral = Regex("""(?<![\w$.])${Regex.escape(longName)}\((-?\d{1,10}),\s*(-?\d{1,10})\)""")
+        val shiftCount = Regex("""BigInt\(b\s*&\s*63\)""")
+        val smallBigInt = Regex("""BigInt\((\d{1,9})\)""")
+        val tableAnchor = Regex("""(?<![\w$.])(${Regex.escape(longName)})(\s*=\s*\(lo,)""")
+        var bigLiterals = 0
+        var shiftTable = 0
         var patched = 0
         var alreadyFixed = 0
         app.bufferedReader().use { input ->
             tmp.bufferedWriter().use { out ->
-                input.lineSequence().forEach { line ->
+                input.lineSequence().forEach { first ->
+                    var line = first
+                    // The table is declared in the runtime's list of long helpers, just before Long_create.
+                    line = tableAnchor.replace(line) {
+                        shiftTable++
+                        "\$bigShifts = Array.from({length: 64}, (_, i) => BigInt(i)), " + it.value
+                    }
+                    line = shiftCount.replace(line) { "\$bigShifts[b & 63]" }
+                    line = intLiteral.replace(line) { bigLiterals++; "(" + it.groupValues[1] + "n)" }
+                    line = createLiteral.replace(line) {
+                        bigLiterals++
+                        val v = (it.groupValues[2].toLong() shl 32) or (it.groupValues[1].toLong() and 0xFFFFFFFFL)
+                        "(" + v + "n)"
+                    }
+                    line = smallBigInt.replace(line) { it.groupValues[1] + "n" }
                     when {
                         broken.containsMatchIn(line) -> {
                             out.write(broken.replace(line) { fixedBody(it.groupValues[1] + it.groupValues[2]) }); patched++
@@ -163,7 +210,12 @@ tasks.matching { it.name == "gdx_teavm_web_js_build" }.configureEach {
             tmp.delete()
             throw GradleException("$app: TeaVM's Long_fromNumber changed; update the long-cast fix in build.gradle.kts")
         }
+        if (shiftTable != 1) {
+            tmp.delete()
+            throw GradleException("$app: TeaVM's long helpers changed (shift table anchor found $shiftTable times); update the BigInt literal patch in build.gradle.kts")
+        }
         tmp.renameTo(app)
+        println("BigInt literal patch: $bigLiterals long literals and the shift table written in $app")
         println("Long_fromNumber fix applied to $app")
     }
 }

@@ -136,6 +136,39 @@ public class SelfTest {
             }
             expect(Math.round(Double.NaN) == 0L, "Math.round(NaN) = " + Math.round(Double.NaN));
         });
+        // build.gradle.kts writes long literals as BigInt literals and takes shift counts from a table; the
+        // libGDX maps hash with FibHash instead of a 64-bit multiply. Values come from arrays, so the compiler can't fold them.
+        check("long literals, shifts and libGDX hash slots are as in Java", () -> {
+            long[] one = {1L, -1L, 0x7FFFFFFFL, 0x80000000L, 0xFFFFFFFFL};
+            expect((one[0] << 63) == Long.MIN_VALUE && (one[0] << 63) == Long.parseLong("-9223372036854775808"), "1L << 63");
+            expect((one[1] >>> 1) == Long.MAX_VALUE && (one[1] >>> 63) == 1L && (one[1] >> 40) == -1L, "shifts of -1L");
+            expect((one[2] + 1L) == 0x80000000L && (one[3] * 2L) == 0x100000000L && (one[4] & 0xFFFF0000L) == 0xFFFF0000L, "32-bit literals");
+            expect((one[0] * 0x9E3779B97F4A7C15L) == Long.parseLong("-7046029254386353131"), "golden ratio literal");
+            expect((one[1] ^ -0x7FFFFFFF00000001L) == 0x7FFFFFFF00000000L, "negative 64-bit literal, got " + (one[1] ^ -0x7FFFFFFF00000001L));
+            int[] keys = new int[4000];
+            long seed = one[0] * 12345L;
+            for (int i = 0; i < keys.length; i++) {
+                seed = seed * 6364136223846793005L + 1442695040888963407L;
+                keys[i] = (int) (seed >>> 33) * (i % 3 == 0 ? -1 : 1);
+            }
+            for (int shift = 33; shift <= 63; shift++) {
+                for (int key : keys) {
+                    int want = (int) (key * 0x9E3779B97F4A7C15L >>> shift);
+                    expect(forgeweb.shim.FibHash.place(key, shift) == want, "FibHash.place(" + key + ", " + shift + ")");
+                }
+            }
+            com.badlogic.gdx.utils.IntMap<Integer> map = new com.badlogic.gdx.utils.IntMap<>();
+            com.badlogic.gdx.utils.IntFloatMap fmap = new com.badlogic.gdx.utils.IntFloatMap();
+            com.badlogic.gdx.utils.ObjectIntMap<String> smap = new com.badlogic.gdx.utils.ObjectIntMap<>();
+            for (int i = 0; i < keys.length; i++) {
+                map.put(keys[i], i);
+                fmap.put(keys[i], i * 0.5f);
+                smap.put("k" + keys[i], i);
+            }
+            for (int i = 0; i < keys.length; i++) {
+                expect(map.get(keys[i]) != null && map.get(keys[i]) >= i && fmap.get(keys[i], -1f) >= i * 0.5f && smap.get("k" + keys[i], -1) >= i, "map lookup " + keys[i]);
+            }
+        });
         check("DeflaterOutputStream (native zlib) reads back with InflaterInputStream", SelfTest::deflateRoundTrip);
         check("small synchronized method while another thread is suspended holding the lock", SelfTest::borrowedMonitor);
         check("every thread queued on a held monitor eventually enters it", SelfTest::contendedMonitor);
