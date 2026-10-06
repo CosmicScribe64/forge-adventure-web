@@ -445,3 +445,9 @@ Next steps:
   iOS Simulator with real Safari 26.2 on `macos-15` and the Android emulator with Chrome 113 on a KVM Linux runner both run the page-side self-test (boot, display, scroll, audio, console, new game by taps, VS screen, duel), take screenshots and read the browser's memory.
   Live site: iOS WebContent footprint 950 / 1086 / 1182 MB (title / overworld / duel); Android Chrome renderer PSS 471 / 621 / 628 MB. WebDriver was not used (safaridriver cannot drive the Simulator).
 - Updated [[e2e-tests]] (a Devices section), [[pick-up-work]], [[open-issues]]. Not edited: NOTES.md, PLAN.md.
+
+## [2026-10-06] update | README says phones work
+- README's Status section now says phones work: the owner played 0.1.2 on an iPhone in Chrome
+  through a duel, and every release is tested in Mobile Safari on the iOS Simulator and Chrome on
+  an Android emulator (about 950 MB and 470 MB at the title, 1.1 GB and 630 MB in a duel). It
+  replaces the earlier wording that iPhones would likely still crash.
