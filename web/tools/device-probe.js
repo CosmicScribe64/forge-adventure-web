@@ -8,7 +8,7 @@
   const CFG = window.__deviceProbe || {};  // {allowed: [regex source], cap: 2, device: name}
   const allowed = (CFG.allowed || []).map(s => new RegExp(s));
   const cap = CFG.cap || 2;
-  const checks = [], errors = [], lines = [], t0 = Date.now();
+  const checks = [], errors = [], warnings = [], lines = [], t0 = Date.now();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const post = (path, body) => fetch(path, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }).then(r => r.text()).catch(() => "");
   const log = m => { const s = "[" + ((Date.now() - t0) / 1000).toFixed(0) + "s] " + m; post("/__log", s); };
@@ -19,6 +19,9 @@
   // Console capture, from before the game starts. Errors that are not on the known-harmless list fail the run.
   const note = (kind, msg) => {
     msg = String(msg);
+    // Card images come from Scryfall, which now and then refuses a burst of requests from a shared CI address
+    // (the browser reports a network error); that is the third party's, so it is a warning here, not a failure.
+    if (kind === "error" && /^Failed to fetch image\. HTTP code: -1 .*api\.scryfall\.com/.test(msg)) { warnings.push(msg.slice(0, 200)); return; }
     if (kind === "error" && !allowed.some(re => re.test(msg))) errors.push(msg.slice(0, 300));
   };
   for (const k of ["log", "info", "warn", "error"]) {
@@ -179,7 +182,7 @@
       log("stopped: " + (e.message || e));
       await shot("last").catch(() => {});
     }
-    await post("/__done", { checks, errors, seconds: Math.round((Date.now() - t0) / 1000), ua: navigator.userAgent });
+    await post("/__done", { checks, errors, warnings, seconds: Math.round((Date.now() - t0) / 1000), ua: navigator.userAgent });
   };
   // Start once the page has loaded, so forgeTest exists when the first command goes out.
   if (document.readyState === "complete") run(); else window.addEventListener("load", () => run());

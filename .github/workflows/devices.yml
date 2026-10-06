@@ -72,11 +72,6 @@ jobs:
           xcrun simctl list devices | grep "$UDID"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
-          # Safari's first-run tip ("View Bookmarks, Share Menu, and Open Tabs") covers the bottom fifth of every
-          # screenshot; try to switch tips off (TipKit's testing switch), and start Safari once so the tip is shown and gone.
-          xcrun simctl spawn "$UDID" defaults write com.apple.mobilesafari com.apple.TipKit.HideAllTipsForTesting -bool YES || true
-          xcrun simctl launch "$UDID" com.apple.mobilesafari -com.apple.TipKit.HideAllTipsForTesting YES || true
-          sleep 10
 
       - name: Run the game in Mobile Safari
         run: |

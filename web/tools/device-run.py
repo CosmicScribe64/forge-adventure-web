@@ -280,7 +280,7 @@ def main():
     checks = RESULT.get("checks", [])
     ok = DONE.is_set() and bool(checks) and all(c["ok"] for c in checks) and not RESULT.get("errors")
     summary = {"platform": A.platform, "site": A.upstream or "built site", "ok": ok, "finished": DONE.is_set(), "seconds": round(time.time() - start),
-               "checks": checks, "console_errors": RESULT.get("errors", []), "memory": MEM, "ua": RESULT.get("ua")}
+               "checks": checks, "console_errors": RESULT.get("errors", []), "warnings": RESULT.get("warnings", [])[:10], "warning_count": len(RESULT.get("warnings", [])), "memory": MEM, "ua": RESULT.get("ua")}
     with open(os.path.join(A.out, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
     for c in checks:
