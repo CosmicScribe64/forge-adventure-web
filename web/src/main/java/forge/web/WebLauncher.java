@@ -44,8 +44,8 @@ public class WebLauncher {
         }
 
         WebApplicationConfiguration config = new WebApplicationConfiguration("canvas");
-        // Fill the window, and follow it (with gdx-teavm's auto size, resize events resize the canvas
-        // and call Forge.resize). Adventure shows more of the map where the window isn't 16:9 and keeps
+        // Fill the visible viewport, and follow it (with gdx-teavm's auto size, resize events resize the canvas
+        // and call Forge.resize; index.html says how big, DensityGraphics sets the backing store). Adventure shows more of the map where the window isn't 16:9 and keeps
         // its panels at the edges (Forge patch: Scene.getViewWidth/Height, ViewLayout).
         config.width = 0;
         config.height = 0;
@@ -61,6 +61,12 @@ public class WebLauncher {
 
         ApplicationListener app = Forge.getApp(null, new WebClipboard(), new WebDeviceAdapter(),
                 FORGE_ROOT, false, false, 0);
-        new WebApplication(new MainThreadListener(app), config);
+        // The canvas is drawn at the device pixel ratio while the game keeps its CSS-pixel layout (DensityGraphics).
+        new WebApplication(new MainThreadListener(app), config) {
+            @Override
+            protected com.github.xpenatan.gdx.teavm.backends.web.WebGraphics createGraphics(WebApplicationConfiguration c) {
+                return new DensityGraphics(c);
+            }
+        };
     }
 }

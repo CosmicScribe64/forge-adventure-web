@@ -636,6 +636,38 @@ def main():
                     print(f"until '{needle}': {'found' if found else 'NOT FOUND'} after {time.time() - (end - limit):.0f}s")
                     if not found:
                         sys.exit(2)
+                elif cmd == "display-check":
+                    # The canvas matches the visible viewport and the pixel ratio (cap = the page's
+                    # FORGE_MAX_PIXEL_RATIO, 2 unless given), the game's own size agrees, and the page can't scroll.
+                    cap = float(parts[1]) if len(parts) > 1 else 2.0
+                    page.evaluate("() => window.scrollTo(0, 100)")
+                    d = page.evaluate("""() => {
+                        const c = document.getElementById('canvas'), r = c.getBoundingClientRect(), vv = window.visualViewport;
+                        const at = (x, y) => { const e = document.elementFromPoint(x, y); return e ? e.id || e.tagName : null; };
+                        return { dpr: window.devicePixelRatio, inner: [innerWidth, innerHeight],
+                          vv: vv ? [vv.width, vv.height, vv.scale] : null, rect: [r.left, r.top, r.width, r.height],
+                          backing: [c.width, c.height], scroll: [scrollX, scrollY],
+                          doc: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
+                          corners: [at(1, 1), at(innerWidth - 2, 1), at(1, innerHeight - 2), at(innerWidth - 2, innerHeight - 2)] };
+                    }""")
+                    g = json.loads(page.evaluate("() => window.forgeTest.cmd('display')"))
+                    vw, vh = (d["vv"][0], d["vv"][1]) if d["vv"] and d["vv"][2] <= 1.01 else d["inner"]
+                    ratio = max(1.0, min(d["dpr"], cap))
+                    ex = (round(vw * ratio), round(vh * ratio))
+                    problems = []
+                    if abs(d["rect"][2] - vw) > 1 or abs(d["rect"][3] - vh) > 1 or abs(d["rect"][0]) > 0.5 or abs(d["rect"][1]) > 0.5:
+                        problems.append(f"canvas css box {d['rect']} is not the visible viewport {vw}x{vh}")
+                    if tuple(d["backing"]) != ex:
+                        problems.append(f"backing store {d['backing']} is not css x ratio {ratio}: {ex}")
+                    if (g["w"], g["h"]) != (round(vw), round(vh)) or (g["bw"], g["bh"]) != tuple(d["backing"]):
+                        problems.append(f"the game sees {g}, the page {d}")
+                    if d["scroll"] != [0, 0] or d["doc"][0] > d["inner"][0] or d["doc"][1] > d["inner"][1]:
+                        problems.append(f"the page scrolls: {d['scroll']} {d['doc']} in {d['inner']}")
+                    if any(x != "canvas" for x in d["corners"]):
+                        problems.append(f"something covers the canvas at the corners: {d['corners']}")
+                    print(f"display: css {d['rect'][2]:.0f}x{d['rect'][3]:.0f} backing {d['backing'][0]}x{d['backing'][1]} ratio {ratio} dpr {d['dpr']} game {g['w']}x{g['h']} (buffer {g['bw']}x{g['bh']})", flush=True)
+                    if problems:
+                        fail("display-check: " + "; ".join(problems))
                 elif cmd == "expect":
                     expr = step[len("expect"):].strip()
                     try:

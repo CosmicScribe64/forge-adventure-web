@@ -58,6 +58,8 @@ import java.util.PriorityQueue;
  *   stop                       cancel walking
  *   click TEXT                 press the visible button whose text or name matches (scene2d or Forge UI)
  *   layout                     the HUD's world size and element bounds (layout debugging)
+ *   display                    the game's size and the framebuffer's: {w, h, bw, bh} (webtest step display-check)
+ *   console TEXT               Forge's Adventure console (for example "spawn enemy Clay Golem")
  *   dismiss                    click through a chain of one-button dialogs (tutorial/NPC messages);
  *                              returns their texts, and the open dialog's choices if it has several
  *   duel                       duel state: phase, life, hands, battlefields, prompt, buttons
@@ -267,6 +269,9 @@ public final class WebTest {
             case "click": return click(arg);
             case "where": return where(arg);
             case "dismiss": return startDismiss();
+            case "display": return "{\"w\":" + Gdx.graphics.getWidth() + ",\"h\":" + Gdx.graphics.getHeight()
+                    + ",\"bw\":" + Gdx.graphics.getBackBufferWidth() + ",\"bh\":" + Gdx.graphics.getBackBufferHeight() + "}";
+            case "console": return q(forge.adventure.stage.ConsoleCommandInterpreter.getInstance().command(arg));
             case "layout": return forge.adventure.stage.WebTestStageAccess.hudLayout();
             case "duel": return duelState();
             case "ok": return duelButton(true);

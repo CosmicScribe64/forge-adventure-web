@@ -2268,10 +2268,37 @@ index 8757ba803b..18cbb889ad 100644
                      float value = 1 - percentage;
                      if (eventDuel)
 diff --git a/forge-gui-mobile/src/forge/util/ScreenUtil.java b/forge-gui-mobile/src/forge/util/ScreenUtil.java
-index 335a933154..bdb15ad322 100644
+index 335a933154..b8e108d172 100644
 --- a/forge-gui-mobile/src/forge/util/ScreenUtil.java
 +++ b/forge-gui-mobile/src/forge/util/ScreenUtil.java
-@@ -43,7 +43,26 @@ public class ScreenUtil implements Disposable {
+@@ -25,12 +25,24 @@ public class ScreenUtil implements Disposable {
+     private static boolean firstCapture = true;
+ 
+     private ScreenUtil() {
+-        width = Forge.getScreenWidth();
+-        height = Forge.getScreenHeight();
++        width = bufferWidth();
++        height = bufferHeight();
+         bufferSize = width * height * 4;
+         pixels = BufferUtils.newByteBuffer(bufferSize);
+     }
+ 
++    /**
++     * The screenshot is a copy of the framebuffer, so its size is the buffer's, not the screen's: they differ
++     * where the buffer is drawn at a higher pixel ratio than the layout (the browser, forge.web.DensityGraphics).
++     */
++    private static int bufferWidth() {
++        return Gdx.graphics != null && Gdx.graphics.getBackBufferWidth() > 0 ? Gdx.graphics.getBackBufferWidth() : Forge.getScreenWidth();
++    }
++
++    private static int bufferHeight() {
++        return Gdx.graphics != null && Gdx.graphics.getBackBufferHeight() > 0 ? Gdx.graphics.getBackBufferHeight() : Forge.getScreenHeight();
++    }
++
+     public static ScreenUtil getInstance() {
+         return instance == null ? instance = new ScreenUtil() : instance;
+     }
+@@ -43,7 +55,26 @@ public class ScreenUtil implements Disposable {
          isInitialized = true;
      }
  
@@ -2280,7 +2307,7 @@ index 335a933154..bdb15ad322 100644
 +     * thumbnails read the old size after a window resize (in a browser or a desktop window).
 +     */
 +    private void ensureSize() {
-+        int w = Forge.getScreenWidth(), h = Forge.getScreenHeight();
++        int w = bufferWidth(), h = bufferHeight();
 +        if (w == width && h == height || w <= 0 || h <= 0) return;
 +        width = w;
 +        height = h;
@@ -2298,7 +2325,7 @@ index 335a933154..bdb15ad322 100644
          if (!isInitialized) {
              initScreenshotBuffer();
          }
-@@ -71,6 +90,7 @@ public class ScreenUtil implements Disposable {
+@@ -71,6 +102,7 @@ public class ScreenUtil implements Disposable {
      }
  
      public Pixmap getThumbnailPreview() {

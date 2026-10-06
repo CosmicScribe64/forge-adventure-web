@@ -12,19 +12,24 @@
 # URL=https://cosmicscribe64.github.io/forge-adventure-web/); no server is started then.
 # E2E_CACHE_BUST=<text> adds a query parameter to the page URL, so a CDN that caches by URL serves the
 # current index.html (the post-deploy check passes the commit). SERVER=0 uses a server that is already running on PORT. Log and screenshot names get the device as
-# a suffix unless it is desktop.
+# a suffix unless it is desktop. VIEW_W x VIEW_H is the device's viewport and SMALL_W x SMALL_H a smaller one for
+# the resize checks (a phone's browser bars appearing: 844 to 700 high). The webtest step display-check asserts that
+# the canvas fills the visible viewport at the capped pixel ratio, that the game agrees and that the page can't scroll.
+# E2E_QUERY=<text> adds query parameters to the page URL (pixelratio=3 forces a backing store ratio, for measuring;
+# then DISPLAY_CAP=3 tells display-check what to expect; the default cap is 2, the page's FORGE_MAX_PIXEL_RATIO).
+DISPLAY_CAP="${DISPLAY_CAP:-2}"
 DEVICE="${1:-${DEVICE:-desktop}}"
 case "$DEVICE" in
-  desktop) DEVICE_ARGS=(); SUFFIX="" ;;
-  phone)   DEVICE_ARGS=(--phone); SUFFIX="-phone" ;;
-  iphone)  DEVICE_ARGS=(--browser webkit --device "${IPHONE_DEVICE:-iPhone 13}"); SUFFIX="-iphone" ;;
+  desktop) DEVICE_ARGS=(); SUFFIX=""; VIEW_W=1280; VIEW_H=720; SMALL_W=1000; SMALL_H=600 ;;
+  phone)   DEVICE_ARGS=(--phone); SUFFIX="-phone"; VIEW_W=390; VIEW_H=844; SMALL_W=390; SMALL_H=700 ;;
+  iphone)  DEVICE_ARGS=(--browser webkit --device "${IPHONE_DEVICE:-iPhone 13}"); SUFFIX="-iphone"; VIEW_W=390; VIEW_H=664; SMALL_W=390; SMALL_H=560 ;;
   *) echo "unknown device '$DEVICE' (desktop, phone or iphone)" >&2; exit 2 ;;
 esac
 if [ -n "${URL:-}" ]; then
-  GAME_URL="${URL%/}/index.html?test=1&seed=1${E2E_CACHE_BUST:+&cb=$E2E_CACHE_BUST}"
+  GAME_URL="${URL%/}/index.html?test=1&seed=1${E2E_CACHE_BUST:+&cb=$E2E_CACHE_BUST}${E2E_QUERY:+&$E2E_QUERY}"
   SERVER=0
 else
-  GAME_URL="http://host.docker.internal:$PORT/index.html?test=1&seed=1"
+  GAME_URL="http://host.docker.internal:$PORT/index.html?test=1&seed=1${E2E_QUERY:+&$E2E_QUERY}"
 fi
 
 e2e_start_server() {

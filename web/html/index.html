@@ -3,13 +3,16 @@
 <head>
     <!-- Replaces gdx-teavm's generated index.html (scripts/build-web copies it in). -->
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Forge</title>
     <style>
-        html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-        body { display: flex; justify-content: center; align-items: center; }
-        /* The game fills the window and follows its size (WebLauncher: gdx-teavm auto size). */
-        #canvas { border: none; display: block; touch-action: none; width: 100vw; height: 100vh; }
+        /* The page never scrolls or rubber-bands: the body is pinned to the window, and the canvas is sized in
+           pixels by the script below (fit), from the visible viewport. 100vh is the height without a mobile
+           browser's bars, so it would put the bottom of the game under the toolbar. The background is black
+           so any letterboxing (a safe-area inset, a rounding pixel) is not noticed. */
+        html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; }
+        body { position: fixed; inset: 0; }
+        #canvas { position: fixed; left: 0; top: 0; border: none; display: block; touch-action: none; width: 100%; height: 100%; }
         /* Top centre, and hidden unless asked for, because every corner has game buttons (End
            Turn, Mulligan, the HUD's avatar, the Stack tab). While hidden, it lets clicks through. */
         #fullscreen {
@@ -20,7 +23,7 @@
         }
         #fullscreen.shown { opacity: .85; pointer-events: auto; }
         #fullscreen.shown:hover { opacity: 1; }
-        body { touch-action: none; overscroll-behavior: none; }
+        body { touch-action: none; }
         #loading {
             position: fixed; inset: 0; display: flex; flex-direction: column;
             justify-content: center; align-items: center; gap: 18px;
@@ -43,7 +46,7 @@
     </style>
 </head>
 <body oncontextmenu="return false">
-<div><canvas id="canvas"></canvas></div>
+<canvas id="canvas"></canvas>
 <button id="fullscreen" title="Full screen" aria-label="Full screen">⛶</button>
 <div id="task"><div class="label"></div><div class="bar"><div class="fill"></div></div></div>
 <div id="loading">
@@ -56,6 +59,53 @@
     const fill = document.getElementById("fill");
     const status = document.getElementById("status");
     const loading = document.getElementById("loading");
+
+    // The canvas follows the visible viewport: the area between a mobile browser's bars, which changes when
+    // they show or hide, and on rotation. window.visualViewport is that area (innerWidth and innerHeight
+    // are the same on the browsers that matter, and the fallback). While the page is pinch-zoomed the
+    // visual viewport shrinks, so a zoomed page keeps the size it had. forgeViewSize is the canvas's CSS size,
+    // which Java takes as the game's size (forge.web.DensityGraphics), and forgePixelRatio how many
+    // backing-store pixels each CSS pixel gets: the device's, at most FORGE_MAX_PIXEL_RATIO (2: a phone's 3
+    // costs 2.25 times the pixels of 2 for little visible gain), and at least 1. ?pixelratio=N forces a
+    // value (for measuring). wiki/concepts/display-and-viewport.md.
+    const FORGE_MAX_PIXEL_RATIO = 2;
+    const canvas = document.getElementById("canvas");
+    let view = { w: 0, h: 0 };
+    function measure() {
+        const vv = window.visualViewport;
+        let w = window.innerWidth, h = window.innerHeight;
+        if (vv && vv.scale <= 1.01) { w = vv.width; h = vv.height; }
+        return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+    }
+    window.forgeViewSize = () => view;
+    window.forgePixelRatio = () => {
+        const forced = parseFloat(new URLSearchParams(location.search).get("pixelratio"));
+        return forced > 0 ? forced : Math.max(1, Math.min(window.devicePixelRatio || 1, FORGE_MAX_PIXEL_RATIO));
+    };
+    // Applies the size; true if it changed.
+    function fit() {
+        const now = measure();
+        if (now.w === view.w && now.h === view.h) return false;
+        view = now;
+        canvas.style.width = now.w + "px";
+        canvas.style.height = now.h + "px";
+        return true;
+    }
+    fit();
+    // The game listens to the window's resize event (gdx-teavm). The viewport can change without one
+    // (visualViewport only, rotation that reports its size late), so those fire it too; the timer is for
+    // anything that was missed. This listener was added first, so the size is set before the game's runs.
+    window.addEventListener("resize", fit);
+    const refit = () => { if (fit()) window.dispatchEvent(new Event("resize")); };
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+    window.addEventListener("orientationchange", () => setTimeout(refit, 100));
+    setInterval(refit, 500);
+    // The state the end-to-end tests assert on.
+    window.forgeDisplay = () => ({
+        view, ratio: window.forgePixelRatio(), canvas: { w: canvas.width, h: canvas.height },
+        css: { w: canvas.clientWidth, h: canvas.clientHeight }, inner: { w: innerWidth, h: innerHeight },
+        scroll: { x: scrollX, y: scrollY, w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight },
+    });
 
     // Time to gameplay: the time each startup stage began (performance.now(), ms since navigation).
     // Stages come from here and from Java (Forge's splash labels, forgeweb.compat.Progress), and
