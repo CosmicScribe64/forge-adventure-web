@@ -20,6 +20,7 @@ A = None            # parsed arguments
 RESULT = {}         # filled by /__done
 MEM = {}            # name -> reading
 DONE = threading.Event()
+LAST = [time.time()]  # when the probe last called in
 SEEN = threading.Event()   # the probe has called in at least once
 LOCK = threading.Lock()
 
@@ -150,12 +151,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path, _, q = self.path.partition("?")
         name = re.sub(r"[^\w-]", "", q.partition("name=")[2]) or "x"
         SEEN.set()
+        LAST[0] = time.time()
         if path == "/__log":
             log(body)
         elif path == "/__shot":
             r = take_shot(name)
             if r is not None and getattr(r, "returncode", 0) != 0:
                 log("shot %s failed: %s" % (name, (getattr(r, "stderr", "") or "")[:200]))
+        elif path == "/__canvas":
+            import base64
+            with open(os.path.join(A.out, "canvas-%s.png" % name), "wb") as f:
+                f.write(base64.b64decode(body))
         elif path == "/__mem":
             take_mem(name)
         elif path == "/__done":
@@ -259,7 +265,18 @@ def main():
             break
         take_shot("not-loaded-%d" % attempt)
         log("the page did not call in within 240 s (attempt %d)" % (attempt + 1))
-    DONE.wait(max(60, A.timeout - (time.time() - start)))
+    # While the probe runs it logs every few seconds; if it goes quiet for 5 minutes the browser has died (an Android tab
+    # killed, a crash): open the page again, up to twice, and the probe starts over.
+    relaunches = 0
+    while not DONE.wait(30):
+        if time.time() - start > A.timeout:
+            break
+        if time.time() - LAST[0] > 300 and relaunches < 2:
+            relaunches += 1
+            take_shot("died-%d" % relaunches)
+            log("no word from the page for 5 minutes; opening it again (%d)" % relaunches)
+            LAST[0] = time.time()
+            launch()
     checks = RESULT.get("checks", [])
     ok = DONE.is_set() and bool(checks) and all(c["ok"] for c in checks) and not RESULT.get("errors")
     summary = {"platform": A.platform, "site": A.upstream or "built site", "ok": ok, "finished": DONE.is_set(), "seconds": round(time.time() - start),

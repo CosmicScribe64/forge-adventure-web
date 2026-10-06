@@ -21,5 +21,5 @@ if [ -n "${SITE_ARTIFACT:-}" ]; then SRC=(--site site); else SRC=(--upstream "$S
 python3 web/tools/device-run.py --platform android --out out/devices/android "${SRC[@]}" --timeout 1800 --query "cb=${RUN_ID:-0}"
 RC=$?
 # Why a tab can disappear: the low-memory killer's and Chrome's own lines.
-adb logcat -d -b all 2>/dev/null | grep -iE "lmkd|killing|chrome.*(died|crash|fatal)|am_kill|oom" | tail -60 > out/devices/android/logcat-kills.txt
+adb logcat -d -b all 2>/dev/null | grep -iE "lmkd|am_kill|am_proc_died|chrome.*(died|crash|fatal)|F libc|F DEBUG|tombstone|Fatal signal|gpu process|oom" | tail -120 > out/devices/android/logcat-kills.txt
 exit $RC

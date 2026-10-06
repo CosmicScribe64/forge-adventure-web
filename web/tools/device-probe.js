@@ -13,6 +13,7 @@
   const post = (path, body) => fetch(path, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }).then(r => r.text()).catch(() => "");
   const log = m => { const s = "[" + ((Date.now() - t0) / 1000).toFixed(0) + "s] " + m; post("/__log", s); };
 
+  setInterval(() => post("/__hb", ""), 20000);
   log("probe injected, readyState " + document.readyState);
 
   // Console capture, from before the game starts. Errors that are not on the known-harmless list fail the run.
@@ -52,25 +53,22 @@
     const s = await Promise.race([cmd("state"), sleep(5000).then(() => null)]);
     return s && pred(s.scene) ? s : false;
   });
-  // The share of sampled pixels that are not black, read from the game's own WebGL context right after the game
-  // drew a frame: tells a screenshot that is black because the game drew nothing from one the device couldn't capture.
-  const canvasInk = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+  // The game's own picture, read from its canvas right after it drew a frame (the drawing buffer is only readable then)
+  // and sent to the server as canvas-NAME.png. It is the game without the browser's bars, and it exists even where the
+  // device's screenshot can't capture a WebGL surface (the Android emulator's comes out black). Returns the PNG's size.
+  const canvasShot = name => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
     try {
-      const c = document.getElementById("canvas"), gl = c.getContext("webgl2") || c.getContext("webgl");
-      const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(4);
-      let n = 0, ink = 0;
-      for (let i = 1; i < 20; i++) for (let j = 1; j < 20; j++) {
-        gl.readPixels(Math.floor(w * i / 20), Math.floor(h * j / 20), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        n++; if (px[0] + px[1] + px[2] > 24) ink++;
-      }
-      res(ink / n);
+      const url = document.getElementById("canvas").toDataURL("image/png");
+      post("/__canvas?name=" + name, url.slice(url.indexOf(",") + 1)).then(() => res(url.length));
     } catch (e) { res("error " + e.message); }
   })));
   const shot = async name => {
     await sleep(500);
-    log("shot " + name + ", canvas ink " + (await canvasInk()));
+    const n = await canvasShot(name);
+    log("shot " + name + ", canvas png " + n + " chars");
     await post("/__shot?name=" + name, "");
   };
+
   const mem = async name => { log("mem " + name); await post("/__mem?name=" + name, ""); };
 
   // A finger: touchstart and touchend on the canvas where the game says the button is (the game reads touch events).
