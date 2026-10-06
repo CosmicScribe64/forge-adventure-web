@@ -44,6 +44,10 @@ first, how the project is run, and the conventions it follows.
   release is broken, which can't undo the deployment. The checks add about 9 minutes to a release
   run and the live check about 2. The repository's `github-pages` environment must allow the `main` branch
   and `v*` tags, or the deploy is rejected ([[build-pipeline]]).
+- **Devices** (`.github/workflows/devices.yml`): the game in real Mobile Safari (iOS Simulator, macOS runner) and real Chrome
+  (Android emulator, Linux runner). Run `gh workflow run devices.yml --ref main`, wait 15 to 30 minutes, download the artifacts
+  (`gh run download <id> -D out/devices`) and look at `summary.json` and the screenshots ([[e2e-tests]]). `pages.yml` calls it beside the
+  deploy (not a gate) and after it. Look here when a phone-only report comes in before asking the owner to try it on an iPhone.
 - **Rehearse a release locally** with the same commands, after
   `TEAVM_OBFUSCATED=true TEAVM_SOURCE_MAP=true scripts/build-web` and `scripts/build-site`:
   `scripts/e2e-release site` (about 9 minutes; `ONLY="boot-iphone"` runs one), and

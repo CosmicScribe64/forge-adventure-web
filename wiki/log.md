@@ -439,3 +439,9 @@ Next steps:
   with SIGSEGV while launching for the phone boot test, before any page existed. Every other
   run passed, including the phone new-game test. `webtest.py` now tries the browser launch, and
   only the launch, a second time.
+
+## [2026-10-06] feature | Device simulation on GitHub runners
+- Added `.github/workflows/devices.yml` (workflow_dispatch and workflow_call), `web/tools/device-run.py`, `web/tools/device-probe.js`, `scripts/devices-android`, `web/tools/test_device_run.py`, and two calls in `pages.yml` (`devices-built` beside the deploy, not a gate; `devices-live` after `verify-live`).
+  iOS Simulator with real Safari 26.2 on `macos-15` and the Android emulator with Chrome 113 on a KVM Linux runner both run the page-side self-test (boot, display, scroll, audio, console, new game by taps, VS screen, duel), take screenshots and read the browser's memory.
+  Live site: iOS WebContent footprint 950 / 1086 / 1182 MB (title / overworld / duel); Android Chrome renderer PSS 471 / 621 / 628 MB. WebDriver was not used (safaridriver cannot drive the Simulator).
+- Updated [[e2e-tests]] (a Devices section), [[pick-up-work]], [[open-issues]]. Not edited: NOTES.md, PLAN.md.

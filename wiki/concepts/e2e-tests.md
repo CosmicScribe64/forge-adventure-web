@@ -1,6 +1,6 @@
 ---
 type: concept
-sources: [scripts/e2e-boot, scripts/e2e-newgame, scripts/e2e-cycle, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/webtest.py, .github/workflows/ci.yml, .github/workflows/pages.yml, web/html/index.html]
+sources: [web/tools/device-run.py, web/tools/device-probe.js, scripts/devices-android, .github/workflows/devices.yml, scripts/e2e-boot, scripts/e2e-newgame, scripts/e2e-cycle, scripts/e2e-common, scripts/e2e-release, scripts/serve-site, web/tools/webtest.py, .github/workflows/ci.yml, .github/workflows/pages.yml, web/html/index.html]
 updated: 2026-10-06
 tags: [testing, phones, webkit, releases]
 ---
@@ -92,6 +92,49 @@ is at the four corners. It prints one line, for example `display: css 390x844 ba
   and on desktop `playing` once after the first tap (headless Chromium allows autoplay, so music starts at the title).
 Run on 2026-10-06 against the minified build, all three devices pass; the display lines were 1280x720 and 1000x600 (ratio 1), 390x844 and 390x700 at 780x1688 and 780x1400 (phone), 390x664 and 390x560 at 780x1328 and 780x1120 (iPhone).
 What these cannot show: the clipping itself. Playwright's phone modes have no browser bars, so the visible viewport is the whole window; the resize check is the stand-in for the bars appearing.
+
+## Devices: real Mobile Safari and real Chrome (2026-10-06)
+`.github/workflows/devices.yml` runs the game on device simulators, on GitHub's free runners, so a phone isn't needed to see what Safari and Android Chrome do.
+It runs on demand (`gh workflow run devices.yml --ref main [-f site_url=...]`, the live site by default) and `pages.yml` calls it twice:
+`devices-built` beside the deploy, on the `github-pages` artifact the build job uploaded, and `devices-live` after `verify-live`, on the page URL.
+The first is not a gate (the deploy does not wait for it; it can only turn the run red) because its built-site mode has not run on a runner yet; the second turns the run red after the deploy. Against the live site both jobs passed (run 37544083281: iOS 18 min, Android 12 min; earlier runs failed on the old site, on Chrome dying and on a Scryfall flake, all handled since).
+
+| Job | Runner | Device | Browser | Time (live site) |
+|---|---|---|---|---|
+| `ios` | `macos-15` | newest "iPhone NN" of the newest iOS runtime (393x852 at 3x; its user agent says iPhone OS 18_7, which Safari freezes, and Safari reports 26.2) booted with `xcrun simctl` | Mobile Safari 26.2 (the real build, in the Simulator) | 14 to 24 min per job, 8 to 13 min of it the probe; the rest is runner start, simulator boot and `footprint` readings |
+| `android` | `ubuntu-latest` with KVM, `reactivecircus/android-emulator-runner` | Pixel 6 profile, API 34 Google APIs x86_64, 6 GB, swiftshader GL, 1080x2400 at 420 dpi | Chrome 113 (the image's own) | 12 to 32 min per job (a boot, then the probe 10 min; a crash costs a 5 minute wait) |
+
+The two run in parallel, so `devices-built` adds no time to the deploy and `devices-live` about 20 minutes after it.
+
+**How it works.** `safaridriver` drives desktop Safari and real iPhones, not the Simulator (that takes Appium and WebDriverAgent), and Android Chrome's chromedriver needs more set-up than a page that already has a test API needs.
+So `web/tools/device-run.py` serves the game on `localhost:8123` (`--site` a built folder, with `serve-compressed.py`'s gzip rules, or `--upstream` a proxy to a running site such as the live one; `adb reverse` makes `localhost` reach it from the emulator),
+puts `web/tools/device-probe.js` into `index.html`, opens the page with `xcrun simctl openurl` or `adb shell am start`, and waits for the probe's verdict.
+The probe runs inside the page and uses the game's own test API (`window.forgeTest.cmd`: `state`, `where`, `display`, `dismiss`, `goto`, `console spawn enemy`, `duel`).
+It asks the server for what only the host can do: `xcrun simctl io screenshot` or `adb exec-out screencap` (`/__shot`), and the browser's memory (`/__mem`). The harmless-error list is read from `web/tools/webtest.py` (`ALLOWED_ERRORS`), so the two stay in step.
+The server restarts the page if the probe goes quiet for 5 minutes (an Android tab that was killed). Logs, `summary.json` (checks, memory, warnings) and the screenshots are uploaded as the artifacts `devices-ios` and `devices-android` (`-built` or `-live` added when `pages.yml` calls them); the job summary shows the table.
+
+**Checks** (the same ones as `e2e-boot` and `e2e-newgame`, in the page, with taps made as touch events on the canvas): boot to the title screen; Scryfall's API and an image reachable; `display` at the title, the overworld, the VS screen and the duel (the canvas is the visible viewport between the browser's bars, the backing store is css size times the capped ratio, the game agrees, nothing else at the corners); a script cannot scroll the page (`scrollTo(0, 100)` leaves `scrollY` at 0); audio off after the taps; no unexpected console errors at the title, overworld and duel; a new game to the overworld by taps on New Game and start; the VS screen and a duel against a spawned Clay Golem. Screenshots: title, create, overworld, vs-a, duel (device screenshots, with the browser's bars) and `canvas-*.png` (the game's own canvas, read from the page).
+A Scryfall image fetch that fails with HTTP code -1 is a warning, not a failure (it happened in 2 of 5 iOS duels, and is Scryfall refusing a burst from a shared CI address or a real Safari problem; not told apart, see [[open-issues]]).
+
+**Memory** (live site, 2026-10-06, the browser's own process, one run each):
+
+| | Title | Overworld | Duel |
+|---|---|---|---|
+| iOS Simulator, Safari WebContent process, `footprint` | 950 MB | 1086 MB | 1182 MB |
+| Android emulator, Chrome renderer, PSS (all of Chrome's processes) | 471 (636) MB | 621 (803) MB | 628 (824) MB |
+
+For comparison the Playwright WebKit RSS was 1.9 GB at the title and 2.3 to 2.5 GB at the overworld, and Chromium's renderer 530 to 630 MB ([[memory-budget]]): real Safari needs half of what Linux WebKit needs, and Android Chrome is where Chromium on the desktop is. The `footprint` figure is what iOS counts against a tab; `ps` RSS is noisy (it ranged 322 to 1051 MB for the same process).
+
+**What this covers that the others don't:** the real iOS WebKit and Safari (bars, bottom address bar, safe areas, `visualViewport`, touch events, `webkit` WebGL), and Android Chrome's layout with its toolbar (412x786 visible of 412x915). **What it doesn't:**
+- Real hardware: both run on software GL and a virtual CPU, so frame rates and memory limits are not the phone's. Neither simulator kills a tab at a memory limit as a phone would (the Android emulator lost its Chrome tab or never loaded the page in 4 of 6 runs, unexplained; `logcat-kills.txt` is in the artifact).
+- Real input: the taps are touch events made by the page. `simctl` has no tap command and the Android taps were not wired to `adb shell input`. The browsers' own gesture handling (bar collapse, pull to refresh, double-tap zoom) is therefore not exercised.
+- iOS: Safari's first-run tip ("View Bookmarks, Share Menu, and Open Tabs") covers the bottom fifth of every device screenshot and can't be dismissed without a tap; use `canvas-*.png` for the game's own picture. The `defaults write` switches tried did not hide it.
+- Android: the emulator's screenshot of a WebGL page is black (swiftshader), so only `canvas-*.png` shows the game. Chrome is version 113, not the current one.
+- Resizing and rotation, audio unlocking (audio is only checked to be off), the live site's service worker (there is none), and the built-site mode (`--site`) on a runner: it is tested only locally, and `pages.yml` has not run `devices-built` yet.
+- The probe takes `localhost` as the origin; the live site's real origin is `cosmicscribe64.github.io`, so anything depending on it (cookies, IndexedDB per origin, CORS to the host) isn't seen. The proxy forwards bytes and headers unchanged.
+
+**First findings:** the live 0.1.1-era page of the morning had the canvas taller than the visible viewport in both browsers (iOS: top at -100 to -120 px, "page scrolls"; Android: -28 px, 842 px high in 786), which is what the display work fixed; the same checks pass on the new build in both. Before a fix is believed on a phone, run `gh workflow run devices.yml --ref main`.
+Run it by hand locally (no device) against a build with `scripts/webtest` as the browser: `python3 web/tools/device-run.py --platform none --out out/dev --site web/build/site --launch "<command that opens {url}>"`.
 
 ## Findings from the WebKit and phone runs
 

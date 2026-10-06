@@ -112,6 +112,10 @@ See [[webtest-harness]].
 - [x] JVM unit tests for the file store and `latin1-js.py`, and Forge's own tests, run in CI ([[unit-tests]]).
 - [ ] Other test-plan steps (game scenarios, memory thresholds) are not started. `WebVirtualFile`, `UserDataStore` and `Http` have no JVM tests.
 
+- [ ] Device runs (2026-10-06, [[e2e-tests]]): `devices-built` in `pages.yml` runs beside the deploy and gates nothing; it has not run on a real release (its `--site` mode is only tested locally). Make `deploy` need it after a few green releases. The Android emulator's Chrome tab died or never loaded in 4 of 6 runs (relaunched by the runner; cause not found, `logcat-kills.txt` is in the artifact); the Android screenshot is black (use `canvas-*.png`); iOS screenshots carry Safari's tip popover; the taps are page-made touch events, not `adb input tap`.
+- [ ] Card images (`api.scryfall.com/cards/.../en?format=image`) failed with "HTTP code: -1" in 2 of 5 iOS Simulator duels while a fetch of the same URL from the page passed at the title. Rate limiting from the runner's address or a real Safari fetch problem; not told apart. A real iPhone should show it if it is the second.
+- [ ] The VS screen shows the map's HUD (portrait, stats, minimap) dimmed behind the pictures on iOS and Android; check whether that is intended.
+
 ## Found 2026-10-05, not fixed
 - [x] The wasm pixmap heap grew by 31 MB per new game and textures by 11.7 MB (the old `biomeImage`
   and `TiledMap` were never disposed). Fixed 2026-10-05 in `patches/forge-web.patch`; see

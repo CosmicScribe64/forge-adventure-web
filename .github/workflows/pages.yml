@@ -71,8 +71,10 @@ jobs:
           path: web/build/site
 
   # The assembled site (the github-pages artifact the build job uploaded) in Mobile Safari in the iOS Simulator
-  # and in Chrome in an Android emulator (devices.yml, about 25 minutes, the two in parallel). Advisory for now: the
-  # deploy waits for it but goes ahead when it fails, until the device runs have proven stable (wiki/concepts/e2e-tests.md).
+  # and in Chrome in an Android emulator (devices.yml, about 20 minutes, the two in parallel). NOT a gate: the deploy
+  # does not wait for it, because this way of running it (the built folder, not a URL) has not been through a real
+  # release yet; it runs beside the deploy and can only turn the run red. Make `deploy` need it once it has proven green
+  # (wiki/concepts/e2e-tests.md). The live-site runs of the same workflow passed in both simulators.
   devices-built:
     needs: build
     uses: ./.github/workflows/devices.yml
@@ -81,8 +83,7 @@ jobs:
       label: "-built"
 
   deploy:
-    needs: [build, devices-built]
-    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
