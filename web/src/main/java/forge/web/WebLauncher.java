@@ -16,6 +16,25 @@ public class WebLauncher {
     /** Loaded by name, so it is in build.gradle.kts's reflection list. */
     public static final String CONTROLLER_MANAGER = "com.badlogic.gdx.controllers.ControllerManagerStub";
 
+    /** A touch screen: the pointer is coarse, or the device reports touch points. */
+    @org.teavm.jso.JSBody(script = "return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;")
+    private static native boolean isTouchDevice();
+
+    private static String readText(java.io.File file) throws java.io.IOException {
+        try (java.io.InputStream in = new java.io.FileInputStream(file)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+            return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
+    private static boolean hasVolumePreference(java.io.File prefs) throws java.io.IOException {
+        if (!prefs.exists()) return false;
+        String text = readText(prefs);
+        return text.contains("UI_VOL_MUSIC=") || text.contains("UI_VOL_SOUNDS=");
+    }
+
     public static void main(String[] args) throws Exception {
         forgeweb.compat.ByName.keep();
         UiThread.start();
@@ -36,10 +55,18 @@ public class WebLauncher {
         // The web build is Adventure mode, so start in it and skip Forge's Classic/Adventure chooser.
         // Written only when there are no preferences yet, so a player's own choice wins.
         java.io.File prefs = new java.io.File(FORGE_ROOT + "data/preferences/forge.preferences");
-        if (!prefs.exists()) {
+        StringBuilder first = new StringBuilder();
+        if (!prefs.exists()) first.append("UI_SELECTOR_MODE=Adventure\n");
+        // Audio stays off until the player asks for it on a touch screen (a phone or tablet): music that starts at
+        // the first tap is not wanted there. Only a player with no saved volumes gets this: Forge's save writes
+        // every preference, so a saved file names both volumes, and one who raises them in Settings keeps that.
+        // Forge's libGDX port plays music and sounds by volume (SoundSystem), so 0 is off.
+        if (isTouchDevice() && !hasVolumePreference(prefs)) first.append("UI_VOL_MUSIC=0\nUI_VOL_SOUNDS=0\n");
+        if (first.length() > 0) {
+            String old = prefs.exists() ? readText(prefs) : "";
             try (java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(prefs),
                     java.nio.charset.StandardCharsets.UTF_8)) {
-                w.write("UI_SELECTOR_MODE=Adventure\n");
+                w.write(old + (old.isEmpty() || old.endsWith("\n") ? "" : "\n") + first);
             }
         }
 

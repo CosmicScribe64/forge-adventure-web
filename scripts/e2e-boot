@@ -25,5 +25,5 @@ TOUCH_CHECK=""
 "$ROOT/scripts/webtest" --url "$GAME_URL" "${DEVICE_ARGS[@]}" \
   --strict --heartbeat 30 --max-time "${E2E_TIMEOUT:-300}" \
   --init-script web/tools/loader-watch.js --log "out/e2e-boot$SUFFIX.log" \
-  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 3; shot out/e2e-boot$SUFFIX.png; expect window.__fillMax==100; $TOUCH_CHECK display-check $DISPLAY_CAP; resize $SMALL_W $SMALL_H; wait 2; display-check $DISPLAY_CAP; shot out/e2e-boot-resized$SUFFIX.png; tap New Game; until 'ui/new_game' 60; wait 2; no-errors" \
+  --steps "until-state state.scene=='StartScene' ${E2E_BOOT_TIMEOUT:-240}; wait 3; shot out/e2e-boot$SUFFIX.png; expect window.__fillMax==100; $TOUCH_CHECK display-check $DISPLAY_CAP; resize $SMALL_W $SMALL_H; wait 2; display-check $DISPLAY_CAP; shot out/e2e-boot-resized$SUFFIX.png; tap New Game; until 'ui/new_game' 60; wait 2; $AUDIO_CHECK no-errors" \
   | grep -vE '^\[ *[0-9.]+s\] \[hb\]'

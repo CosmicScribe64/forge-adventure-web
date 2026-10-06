@@ -18,11 +18,13 @@
 # E2E_QUERY=<text> adds query parameters to the page URL (pixelratio=3 forces a backing store ratio, for measuring;
 # then DISPLAY_CAP=3 tells display-check what to expect; the default cap is 2, the page's FORGE_MAX_PIXEL_RATIO).
 DISPLAY_CAP="${DISPLAY_CAP:-2}"
+# AUDIO_CHECK: on a touch device a fresh profile must not play anything after the taps (audio is off until the player
+# raises the volumes in Settings, forge.web.WebLauncher); the desktop plays music from the title screen on (headless Chromium allows autoplay), which AUDIO_CHECK asserts once; AUDIO_CHECK_END is for the overworld.
 DEVICE="${1:-${DEVICE:-desktop}}"
 case "$DEVICE" in
-  desktop) DEVICE_ARGS=(); SUFFIX=""; VIEW_W=1280; VIEW_H=720; SMALL_W=1000; SMALL_H=600 ;;
-  phone)   DEVICE_ARGS=(--phone); SUFFIX="-phone"; VIEW_W=390; VIEW_H=844; SMALL_W=390; SMALL_H=700 ;;
-  iphone)  DEVICE_ARGS=(--browser webkit --device "${IPHONE_DEVICE:-iPhone 13}"); SUFFIX="-iphone"; VIEW_W=390; VIEW_H=664; SMALL_W=390; SMALL_H=560 ;;
+  desktop) DEVICE_ARGS=(); SUFFIX=""; AUDIO_CHECK="audio-check playing;"; AUDIO_CHECK_END=""; VIEW_W=1280; VIEW_H=720; SMALL_W=1000; SMALL_H=600 ;;
+  phone)   DEVICE_ARGS=(--phone); SUFFIX="-phone"; AUDIO_CHECK="audio-check none;"; AUDIO_CHECK_END="audio-check none;"; VIEW_W=390; VIEW_H=844; SMALL_W=390; SMALL_H=700 ;;
+  iphone)  DEVICE_ARGS=(--browser webkit --device "${IPHONE_DEVICE:-iPhone 13}"); SUFFIX="-iphone"; AUDIO_CHECK="audio-check none;"; AUDIO_CHECK_END="audio-check none;"; VIEW_W=390; VIEW_H=664; SMALL_W=390; SMALL_H=560 ;;
   *) echo "unknown device '$DEVICE' (desktop, phone or iphone)" >&2; exit 2 ;;
 esac
 if [ -n "${URL:-}" ]; then

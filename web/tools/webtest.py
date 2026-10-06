@@ -668,6 +668,14 @@ def main():
                     print(f"display: css {d['rect'][2]:.0f}x{d['rect'][3]:.0f} backing {d['backing'][0]}x{d['backing'][1]} ratio {ratio} dpr {d['dpr']} game {g['w']}x{g['h']} (buffer {g['bw']}x{g['bh']})", flush=True)
                     if problems:
                         fail("display-check: " + "; ".join(problems))
+                elif cmd == "audio-check":
+                    # none: no Howler sound is playing (music is a Howl, see HowlMusic). playing: at least one is.
+                    want = parts[1] if len(parts) > 1 else "none"
+                    n = page.evaluate("() => window.Howler ? Howler._howls.filter(h => h.playing()).length : 0")
+                    total = page.evaluate("() => window.Howler ? Howler._howls.length : 0")
+                    print(f"audio: {n} of {total} Howl objects playing", flush=True)
+                    if (want == "none") != (n == 0):
+                        fail(f"audio-check {want}: {n} of {total} Howl objects are playing")
                 elif cmd == "expect":
                     expr = step[len("expect"):].strip()
                     try:
