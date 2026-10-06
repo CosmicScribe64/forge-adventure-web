@@ -13,6 +13,8 @@
   const post = (path, body) => fetch(path, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }).then(r => r.text()).catch(() => "");
   const log = m => { const s = "[" + ((Date.now() - t0) / 1000).toFixed(0) + "s] " + m; post("/__log", s); };
 
+  log("probe injected, readyState " + document.readyState);
+
   // Console capture, from before the game starts. Errors that are not on the known-harmless list fail the run.
   const note = (kind, msg) => {
     msg = String(msg);
@@ -82,7 +84,6 @@
 
   // The same assertions as webtest's display-check, on the visible viewport.
   const displayCheck = async label => {
-    window.scrollTo(0, 100);
     const c = document.getElementById("canvas"), r = c.getBoundingClientRect(), vv = window.visualViewport;
     const at = (x, y) => { const e = document.elementFromPoint(x, y); return e ? e.id || e.tagName : null; };
     const g = await cmd("display");
@@ -93,10 +94,18 @@
     if (Math.abs(r.width - vw) > 1 || Math.abs(r.height - vh) > 1 || Math.abs(r.left) > 0.5 || Math.abs(r.top) > 0.5) problems.push("canvas css box " + [r.left, r.top, r.width, r.height].map(Math.round) + " is not the visible viewport " + vw + "x" + vh);
     if (c.width !== ex[0] || c.height !== ex[1]) problems.push("backing store " + c.width + "x" + c.height + " is not css x ratio " + ratio + ": " + ex);
     if (g.w !== Math.round(vw) || g.h !== Math.round(vh) || g.bw !== c.width || g.bh !== c.height) problems.push("the game sees " + JSON.stringify(g));
-    if (scrollX !== 0 || scrollY !== 0 || document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight) problems.push("the page scrolls: " + [scrollX, scrollY, document.documentElement.scrollWidth, document.documentElement.scrollHeight] + " in " + innerWidth + "x" + innerHeight);
+    if (scrollX !== 0 || scrollY !== 0 || document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight) problems.push("the page is scrolled or larger than the window: " + [scrollX, scrollY, document.documentElement.scrollWidth, document.documentElement.scrollHeight] + " in " + innerWidth + "x" + innerHeight);
     const corners = [at(1, 1), at(innerWidth - 2, 1), at(1, innerHeight - 2), at(innerWidth - 2, innerHeight - 2)];
     if (corners.some(x => x !== "canvas")) problems.push("something covers the canvas at the corners: " + corners);
     check("display " + label, !problems.length, problems.length ? problems.join("; ") : "css " + Math.round(r.width) + "x" + Math.round(r.height) + " backing " + c.width + "x" + c.height + " ratio " + ratio + " dpr " + dpr + " inner " + innerWidth + "x" + innerHeight + " screen " + screen.width + "x" + screen.height);
+  };
+  // Can a script scroll the page? (webtest's display-check does the same; real Safari moves the page even when the
+  // document is no larger than the window, which shifts the canvas under the bars.) Scrolls back afterwards.
+  const scrollCheck = async label => {
+    window.scrollTo(0, 100); await sleep(400);
+    const y = scrollY, top = document.getElementById("canvas").getBoundingClientRect().top;
+    window.scrollTo(0, 0); await sleep(400);
+    check("page does not scroll " + label, y === 0, "scrollTo(0,100) gives scrollY " + y + ", canvas top " + Math.round(top));
   };
   const audioCheck = label => {
     const n = window.Howler ? Howler._howls.filter(h => h.playing()).length : 0;
@@ -114,7 +123,7 @@
       });
       await sleep(4000);
       await shot("title"); await mem("title");
-      await displayCheck("title"); audioCheck("title"); errorCheck("title");
+      await displayCheck("title"); await scrollCheck("title"); audioCheck("title"); errorCheck("title");
       await step("new game screen", async () => { await tap("New Game"); await untilLine("ui/new_game", 90); await sleep(3000); });
       await shot("create"); audioCheck("create");
       await step("new game to overworld", async () => {
@@ -129,7 +138,7 @@
         await cmd("click done"); await sleep(3000); await cmd("dismiss"); await sleep(1500);
       });
       await shot("overworld"); await mem("overworld");
-      await displayCheck("overworld"); audioCheck("overworld"); errorCheck("overworld");
+      await displayCheck("overworld"); await scrollCheck("overworld"); audioCheck("overworld"); errorCheck("overworld");
       // The rest only needs to get somewhere to look at; a failure is reported but the results so far stand.
       try {
         await cmd("goto portal"); await sleep(8000); await cmd("dismiss"); await sleep(2000);

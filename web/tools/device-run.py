@@ -20,6 +20,7 @@ A = None            # parsed arguments
 RESULT = {}         # filled by /__done
 MEM = {}            # name -> reading
 DONE = threading.Event()
+SEEN = threading.Event()   # the probe has called in at least once
 LOCK = threading.Lock()
 
 
@@ -141,6 +142,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(n).decode("utf-8", "replace") if n else ""
         path, _, q = self.path.partition("?")
         name = re.sub(r"[^\w-]", "", q.partition("name=")[2]) or "x"
+        SEEN.set()
         if path == "/__log":
             log(body)
         elif path == "/__shot":
@@ -228,17 +230,29 @@ def main():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = "http://localhost:%d/index.html?test=1&seed=1%s" % (A.port, ("&" + A.query) if A.query else "")
     start = time.time()
-    if A.launch:
-        r = sh(A.launch.format(url=url))
-    elif A.platform == "ios":
-        r = sh(["xcrun", "simctl", "openurl", A.udid, url])
-    elif A.platform == "android":
-        r = sh(["adb", "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "'" + url + "'", "com.android.chrome"])
-    else:
-        r = None
-    if r is not None:
-        log("launch: rc %s %s" % (r.returncode, (r.stdout + r.stderr).strip()[:300]))
-    DONE.wait(A.timeout)
+
+    def launch():
+        if A.launch:
+            r = sh(A.launch.format(url=url))
+        elif A.platform == "ios":
+            r = sh(["xcrun", "simctl", "openurl", A.udid, url])
+        elif A.platform == "android":
+            sh(["adb", "shell", "am", "force-stop", "com.android.chrome"])
+            r = sh(["adb", "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "'" + url + "'", "com.android.chrome"])
+        else:
+            r = None
+        if r is not None:
+            log("launch: rc %s %s" % (r.returncode, (r.stdout + r.stderr).strip()[:300]))
+
+    # The browser sometimes starts without loading the page (a first-run screen, a stuck tab): if the probe has not
+    # called in after 4 minutes, take a picture and open the page again, up to twice.
+    for attempt in range(3):
+        launch()
+        if SEEN.wait(240):
+            break
+        take_shot("not-loaded-%d" % attempt)
+        log("the page did not call in within 240 s (attempt %d)" % (attempt + 1))
+    DONE.wait(max(60, A.timeout - (time.time() - start)))
     checks = RESULT.get("checks", [])
     ok = DONE.is_set() and bool(checks) and all(c["ok"] for c in checks) and not RESULT.get("errors")
     summary = {"platform": A.platform, "site": A.upstream or "built site", "ok": ok, "finished": DONE.is_set(), "seconds": round(time.time() - start),
@@ -257,6 +271,7 @@ def main():
             for c in checks:
                 f.write("| %s | %s %s |\n" % (c["name"], "pass" if c["ok"] else "**FAIL**", c["detail"][:150].replace("|", "/")))
     if not DONE.is_set():
+        take_shot("timeout")
         print("FAIL: the probe did not report within %d s" % A.timeout)
     sys.exit(0 if ok else 1)
 
