@@ -83,11 +83,17 @@ The WebKit web process of 0.1.1 is 2701 MB at the title screen and 3454 MB at th
 - **`GL_LINE_SMOOTH` is not a WebGL capability** ([[bug-catalog]]). Forge's `Graphics` enables it around every line and outline.
   Chromium swallows the `INVALID_ENUM`; WebKit logs a console error for each call, 42 to 78 lines on the way to the overworld, and
   `--strict` fails on them. Fixed in the patch (`Graphics.setLineSmoothing`). Desktop Chromium never showed it.
-- **A Blob URL revoked while its audio was still being fetched** (our code, `HowlMusic`). The title screen creates a music track
-  and replaces it within half a second; `dispose()` revoked the first track's Blob URL immediately, and in about one WebKit boot in
-  three the element's fetch had not started yet, so WebKit logged `Failed to load resource`, a message with no URL. The `[netfail]` lines
-  of webtest named the `blob:` URL, and a run that delayed `revokeObjectURL` by 3 s through an init script had no failure in 4 runs
-  where the unchanged page failed 1 in 4 (and 3 in about 8 earlier). The revoke now waits 5 s, and 7 WebKit boots in a row passed afterwards (six alone and the rehearsal's). Chromium never showed it.
+- **WebKit failing a blob media load by itself** (`HowlMusic`). In about one WebKit iPhone boot in 15 the title screen's music
+  element got `MEDIA_ERR_SRC_NOT_SUPPORTED` (code 4) a few milliseconds after `loadstart`, and WebKit logged `Failed to load resource`,
+  a message with no URL; webtest's `[netfail]` line named a `blob:` URL (failure `None`). We first blamed `dispose()` revoking the
+  Blob URL (the title screen swaps its track within half a second) and delayed the revoke by 5 s, but the failure came back (2 in 12
+  boots with the delay), and the log showed that nothing had been revoked when it happened, and that fetching the same URL right
+  afterwards worked. An isolated page (real Howler, 300 create-and-dispose cycles of mp3 tracks) failed 1 to 5 times a run with
+  every variant tried: Howler's `src` swap kept, replaced or left out, a gap of 400 ms between tracks, a MIME type on the Blob, fetching the URL
+  before use, holding the Blob and the audio elements so nothing is collected, and a plain `http:` URL (which fails the same way, silently). Only a `data:`
+  URI, which WebKit decodes in the page and never sends to the network process, had no failure (6 runs, 1800 loads). `HowlMusic` now
+  builds a `data:` URI (a 3.7 MB track becomes 5 MB of string, freed at `dispose()`), so there is nothing to revoke. After the change 20 iPhone boots
+  in a row passed. The cause inside WebKit (probably its GStreamer media loader cancelling the request) was not found.
 - **WebKit's memory** is about three times Chromium's ([[open-issues]]).
 - **The page's full screen button covered the top of New Game on a phone.** On a touch screen the button was shown for the first
   seconds after loading at the top centre, 34x28 pixels from 4 pixels down, and the title screen's New Game button starts about

@@ -149,7 +149,8 @@ Behaviour checked in the same setup:
   a click the menu track plays from the start.
 - Track changes work: seeking to the last two seconds of the menu track made the game dispose it
   and start the next one (164 s), and only one Howl stayed alive.
-- `dispose()` now revokes the Blob URL, which fixes the leak noted in [[bug-catalog]].
+- `dispose()` used to revoke the Blob URL, which fixed the leak noted in [[bug-catalog]]. Since 2026-10-06 the track is a `data:` URI
+  instead (WebKit failed some Blob media loads, see [[e2e-tests]]), so nothing needs revoking; the string is dropped at `dispose()`.
 - Volume goes through `setVolume` unchanged; the game's music volume preference was 100 in the
   test, so only the pass-through was seen, not other levels.
 - Not tested on a real iPhone. WebKit may need a user gesture for every new audio element, so
@@ -649,7 +650,7 @@ card pool and `StaticData.ensureAllCardsLoaded` would load everything anyway.
 
 ## Still to do (PLAN Phase 5, [[open-issues]])
 Next steps, in order:
-1. Done 2026-10-04: music streams with `html5: true` and its Blob URLs are revoked (see
+1. Done 2026-10-04: music streams with `html5: true` (its tracks were Blob URLs, revoked after use; data: URIs since 2026-10-06) (see
    "Music streaming" above). Saved 54 to 58 MB at the menu and 86 MB at the overworld.
 2. Done 2026-10-05, no gain: revoking the app.js Blob URL (see "Heap snapshot" above).
 3. Done 2026-10-05: the card zip is dropped after 5 idle seconds and packs once fully read, and
